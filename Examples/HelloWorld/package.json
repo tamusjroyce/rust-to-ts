@@ -1,0 +1,11 @@
+{
+  "name": "hello-world-example",
+  "version": "0.0.0",
+  "private": true,
+  "devDependencies": {
+    "typescript": "^5.2.2"
+  },
+  "scripts": {
+    "build": "npx tsc --project tsconfig.json"
+  }
+}

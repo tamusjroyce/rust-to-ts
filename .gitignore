@@ -1,0 +1,162 @@
+# ----- OS -----
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+# NOTE: previously this file ignored everything with "*" and re-included directories
+# which prevented source files from being added. Removed that behavior and instead
+# explicitly allow project source files below while continuing to ignore build
+# artifacts and dependencies.
+
+# ----- IDEs / Editors -----
+# VS Code
+.vscode/
+.history/
+.code-workspace
+
+# IntelliJ / JetBrains
+.idea/
+*.iml
+out/
+
+# VS / Rider
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.ide/
+
+# Other editors
+*.swp
+*.swo
+
+# ----- Rust -----
+/target/
+**/*.rs.bk
+Cargo.lock
+# if this is a library, keep Cargo.lock; uncomment next line to commit lockfile for bins
+# !Cargo.lock
+
+# Rust build artifacts
+*.rlib
+*.rmeta
+*.dSYM/
+
+# Profiling / coverage
+perf.data*
+*.profraw
+*.profdata
+*.gcda
+*.gcno
+coverage/
+flamegraph.svg
+infer-out/
+
+# ----- Node / TypeScript -----
+node_modules/
+**/node_modules/
+.npm/
+.pnpm-store/
+package-lock.json
+pnpm-lock.yaml
+npm-debug.log*
+yarn-error.log
+.yarn/
+.next/
+dist/
+build/
+coverage/
+.cache/
+*.tsbuildinfo
+*.map
+
+# TypeScript outputs
+**/*.js
+**/*.js.map
+
+# Allow project source files and config so they can be committed
+!**/*.rs
+!**/*.ts
+!src/
+!Examples/
+!Cargo.toml
+!package.json
+!tsconfig.json
+
+# ----- .NET / C# -----
+# Build results
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Tt]est[Rr]esult*/
+
+# Visual Studio cache/options
+*.dbmdl
+*.pdb
+*.obj
+*.exe
+*.dll
+*.cache
+*.log
+*.vspscc
+*.vssscc
+*.vsp
+*.psess
+*.scc
+
+# Auto-generated files
+*.Designer.cs
+*_i.c
+*_p.c
+*.ncb
+*.sdf
+*.opensdf
+*.tlog
+*.ide/
+
+# NuGet
+*.nupkg
+*.nuspec
+packages/
+project.lock.json
+.nuget/
+
+# Rider / Resharper
+_ReSharper*/
+*.DotSettings.user
+
+# ASP.NET
+App_Data/
+
+# ----- Python (if any helpers) -----
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+
+# ----- Docs -----
+docs/
+
+# ----- Logs / dumps -----
+*.log
+*.trace
+*.dmp
+*.stackdump
+
+# ----- Misc -----
+*.tmp
+*.temp
+*.bak
+*.orig
+*.patch
+
+# Git
+.git-credentials
+.gitconfig.local
