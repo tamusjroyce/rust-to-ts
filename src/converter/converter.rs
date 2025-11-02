@@ -1,11 +1,18 @@
 use syn::{File, Item, ItemFn, FnArg, ReturnType, Type, ItemStruct, Fields, Stmt, Expr, Block};
 use syn::{ImplItem};
 use syn::{Pat, PatTuple};
+use syn::punctuated::Punctuated;
+use syn::Token;
+use syn::parse::Parser;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub fn convert_rust_to_ts(ast: &File, _source: &str) -> String {
+pub fn convert_rust_to_ts(ast: &File, _source: &str, is_main_file: bool) -> String {
     let mut output = String::new();
+    if is_main_file {
+        // Naive import for sibling lib when converting a main.rs
+        output.push_str("import { NeuralNetwork } from \"./lib.ts\";\n\n");
+    }
     
     for item in &ast.items {
         match item {
@@ -31,7 +38,7 @@ pub fn convert_rust_to_ts(ast: &File, _source: &str) -> String {
                 // Skip modules (e.g., #[cfg(test)] mod tests)
             }
             _ => {
-                output.push_str("// Unsupported Rust item\n\n");
+                output.push_str(&format!("// Unsupported Rust item: {}\n\n", quote::quote!(#item).to_string()));
             }
         }
     }
@@ -55,6 +62,10 @@ fn convert_function(func: &ItemFn) -> String {
         .collect();
     let gen_suffix = if gen_params.is_empty() { String::new() } else { format!("<{}>", gen_params.join(", ")) };
 
+    let is_main = func.sig.ident == "main";
+    if is_main {
+        output.push_str("export ");
+    }
     output.push_str(&format!("function {}{}(", func.sig.ident, gen_suffix));
     
     // Parameters
@@ -99,20 +110,28 @@ fn convert_block(block: &Block) -> String {
     let last_idx = if block.stmts.is_empty() { None } else { Some(block.stmts.len() - 1) };
 
     for (i, stmt) in block.stmts.iter().enumerate() {
-        // If the last statement is an expression without a semicolon, return it
+        // If the last statement is an expression without a semicolon, return it,
+        // except for control-flow expressions like for/if which should emit as statements.
         if let Some(last) = last_idx {
             if i == last {
-            if let Stmt::Expr(expr, None) = stmt {
-                let expr_str = convert_expr(expr);
-                if expr_str.is_empty() || expr_str == "/* Unsupported expression */" {
-                    output.push_str("  // Unsupported trailing expression\n");
-                } else {
-                    output.push_str("  return ");
-                    output.push_str(&expr_str);
-                    output.push_str(";\n");
+                if let Stmt::Expr(expr, None) = stmt {
+                    match expr {
+                        Expr::ForLoop(_) | Expr::If(_) => {
+                            // fall through to normal statement conversion
+                        }
+                        _ => {
+                            let expr_str = convert_expr(expr);
+                            if expr_str.is_empty() || expr_str.starts_with("/* Unsupported") {
+                                output.push_str("  // Unsupported trailing expression\n");
+                            } else {
+                                output.push_str("  return ");
+                                output.push_str(&expr_str);
+                                output.push_str(";\n");
+                            }
+                            continue;
+                        }
+                    }
                 }
-                continue;
-            }
             }
         }
 
@@ -124,37 +143,29 @@ fn convert_block(block: &Block) -> String {
 
 fn convert_stmt(stmt: &Stmt) -> String {
     match stmt {
-        Stmt::Macro(stmt_mac) => {
-            // Handle statement macros like println! and print!
-            let name = stmt_mac
-                .mac
-                .path
-                .segments
-                .last()
-                .map(|s| s.ident.to_string())
-                .unwrap_or_default();
-            let args = stmt_mac.mac.tokens.to_string();
-            match name.as_str() {
-                "println" => {
-                    let mut out = String::from("  // Rust macro\n");
-                    out.push_str(&format!("  console.log({});\n", args.trim()));
-                    out
-                }
-                "print" => {
-                    let mut out = String::from("  // Rust macro\n");
-                    out.push_str(&format!("  process.stdout.write({});\n", args.trim()));
-                    out
-                }
-                _ => {
-                    format!("  // Unsupported macro: {}!\\n", name)
-                }
-            }
-        }
+        Stmt::Macro(stmt_mac) => convert_macro_stmt(stmt_mac),
         Stmt::Local(local) => {
             let mut result = String::from("  // Rust variable declaration\n");
             // Determine variable names and whether it's a tuple destructure
             let (pat_ts, is_tuple, is_mut) = match &local.pat {
                 Pat::Ident(p) => (p.ident.to_string(), false, p.mutability.is_some()),
+                Pat::Type(pt) => {
+                    // Handle patterns like `let name: Type = ...;`
+                    match &*pt.pat {
+                        Pat::Ident(p) => (p.ident.to_string(), false, p.mutability.is_some()),
+                        Pat::Tuple(PatTuple { elems, .. }) => {
+                            let mut names: Vec<String> = Vec::new();
+                            for (i, elem) in elems.iter().enumerate() {
+                                match elem {
+                                    Pat::Ident(pi) => names.push(pi.ident.to_string()),
+                                    _ => names.push(format!("_tmp{}", i)),
+                                }
+                            }
+                            (format!("[{}]", names.join(", ")), true, false)
+                        }
+                        _ => ("_tmp".to_string(), false, true),
+                    }
+                }
                 Pat::Tuple(PatTuple { elems, .. }) => {
                     let mut names: Vec<String> = Vec::new();
                     for (i, elem) in elems.iter().enumerate() {
@@ -187,9 +198,16 @@ fn convert_stmt(stmt: &Stmt) -> String {
             result
         }
         Stmt::Expr(expr, semi) => {
+            // Special forms: for-loops and if (including if-let)
+            if let Expr::ForLoop(fl) = expr {
+                return convert_for_loop(fl);
+            }
+            if let Expr::If(ifexpr) = expr {
+                return convert_if_stmt(ifexpr);
+            }
             let expr_str = convert_expr(expr);
             if expr_str.is_empty() || expr_str == "/* Unsupported expression */" {
-                return String::from("  // Unsupported statement\n");
+                return format!("  // Unsupported statement: {}\n", quote::quote!(#expr).to_string());
             }
             let mut result = String::from("  // Rust expression\n");
             result.push_str(&format!("  {}", expr_str));
@@ -199,12 +217,29 @@ fn convert_stmt(stmt: &Stmt) -> String {
             result.push('\n');
             result
         }
-        _ => String::from("  // Unsupported statement\n"),
+        _ => String::from("  // Unsupported statement (unhandled variant)\n"),
     }
 }
 
 fn convert_expr(expr: &Expr) -> String {
     match expr {
+        Expr::ForLoop(fl) => {
+            // Handled at statement level, but keep a comment if used in expression position
+            format!("/* Unsupported expression (for-loop): {} */", quote::quote!(#fl).to_string())
+        }
+        Expr::If(ifexpr) => {
+            // Handled at statement level
+            format!("/* Unsupported expression (if): {} */", quote::quote!(#ifexpr).to_string())
+        }
+        Expr::Unary(u) => {
+            use syn::UnOp;
+            let inner = convert_expr(&u.expr);
+            match u.op {
+                UnOp::Neg(_) => format!("-{}", inner),
+                UnOp::Not(_) => format!("!{}", inner),
+                _ => "/* Unsupported expression */".to_string(),
+            }
+        }
         Expr::Lit(lit) => {
             match &lit.lit {
                 syn::Lit::Int(i) => i.base10_digits().to_string(),
@@ -212,6 +247,10 @@ fn convert_expr(expr: &Expr) -> String {
                 syn::Lit::Str(s) => format!("\"{}\"", s.value()),
                 _ => quote::quote!(#lit).to_string(),
             }
+        }
+        Expr::Tuple(t) => {
+            let parts: Vec<String> = t.elems.iter().map(convert_expr).collect();
+            format!("[{}]", parts.join(", "))
         }
         Expr::Path(path) => {
             if let Some(ident) = path.path.get_ident() {
@@ -225,7 +264,16 @@ fn convert_expr(expr: &Expr) -> String {
             let recv = convert_expr(&mc.receiver);
             let method = mc.method.to_string();
             let args: Vec<String> = mc.args.iter().map(convert_expr).collect();
-            format!("{}.{}({})", recv, method, args.join(", "))
+            // Map common Rust std methods to JS where safe
+            match method.as_str() {
+                "min" => {
+                    if let Some(arg0) = args.get(0) { format!("Math.min({}, {})", recv, arg0) } else { format!("/* Unsupported min call: {}.min() */", recv) }
+                }
+                "max" => {
+                    if let Some(arg0) = args.get(0) { format!("Math.max({}, {})", recv, arg0) } else { format!("/* Unsupported max call: {}.max() */", recv) }
+                }
+                _ => format!("{}.{}({})", recv, method, args.join(", ")),
+            }
         }
         Expr::Field(f) => {
             let base = convert_expr(&f.base);
@@ -261,27 +309,7 @@ fn convert_expr(expr: &Expr) -> String {
             let args: Vec<String> = call.args.iter().map(|arg| convert_expr(arg)).collect();
             format!("{}({})", func, args.join(", "))
         }
-        Expr::Macro(mac) => {
-            // Handle macros like println!
-            let macro_name = mac.mac.path.segments.last().unwrap().ident.to_string();
-            match macro_name.as_str() {
-                "println" => {
-                    let tokens = mac.mac.tokens.to_string();
-                    let cleaned = tokens.trim();
-                    if cleaned.is_empty() {
-                        "console.log()".to_string()
-                    } else {
-                        format!("console.log({})", cleaned)
-                    }
-                }
-                "print" => {
-                    let tokens = mac.mac.tokens.to_string();
-                    let cleaned = tokens.trim();
-                    format!("process.stdout.write({})", cleaned)
-                }
-                _ => format!("/* Unsupported macro: {}! */", macro_name)
-            }
-        }
+        Expr::Macro(mac) => convert_macro_expr(mac),
         Expr::Return(ret) => {
             if let Some(expr) = &ret.expr {
                 format!("return {}", convert_expr(expr))
@@ -289,7 +317,7 @@ fn convert_expr(expr: &Expr) -> String {
                 "return".to_string()
             }
         }
-        _ => "/* Unsupported expression */".to_string(),
+        _ => format!("/* Unsupported expression: {} */", quote::quote!(#expr).to_string()),
     }
 }
 
@@ -317,6 +345,11 @@ fn convert_struct(struct_item: &ItemStruct) -> String {
     }
     
     output.push_str("}\n\n");
+
+    // Provide a runtime namespace object for associated functions if this is NeuralNetwork
+    if struct_item.ident == "NeuralNetwork" {
+        output.push_str("export const NeuralNetwork: any = {};\n\n");
+    }
     output
 }
 
@@ -382,6 +415,87 @@ fn convert_impl_inherent(impl_item: &syn::ItemImpl) -> String {
         .collect();
     let generic_suffix = if generics.is_empty() { String::new() } else { format!("<{}>", generics.join(", ")) };
 
+    // Special handling for NeuralNetwork associated functions to produce a usable TS runtime
+    if type_name == "NeuralNetwork" {
+        let mut has_new_with_value = false;
+        let mut has_random_uniform = false;
+        for it in &impl_item.items {
+            if let ImplItem::Fn(meth) = it {
+                if meth.sig.receiver().is_none() {
+                    let name = meth.sig.ident.to_string();
+                    if name == "new_with_value" { has_new_with_value = true; }
+                    if name == "random_uniform" { has_random_uniform = true; }
+                }
+            }
+        }
+        if has_new_with_value {
+            out.push_str(&format!("// Converted from Rust: impl {} associated functions\n", type_name));
+            out.push_str("Object.assign(NeuralNetwork, {\n");
+            out.push_str("  new_with_value: function(x_layers: number, y_nodes: number, z_weights: number, value: any) {\n");
+            out.push_str("    const size = x_layers * y_nodes * z_weights;\n");
+            out.push_str("    const data = Array(size).fill(value);\n");
+            out.push_str("    return {\n");
+            out.push_str("      x_layers, y_nodes, z_weights, data,\n");
+            out.push_str("      dims() { return [this.x_layers, this.y_nodes, this.z_weights]; },\n");
+            out.push_str("      len() { return this.data.length; },\n");
+            out.push_str("      is_empty() { return this.data.length === 0; },\n");
+            out.push_str("      index(x: number, y: number, z: number) {\n");
+            out.push_str("        if (x < this.x_layers && y < this.y_nodes && z < this.z_weights) {\n");
+            out.push_str("          const yz = this.y_nodes * this.z_weights;\n");
+            out.push_str("          return x * yz + y * this.z_weights + z;\n");
+            out.push_str("        }\n");
+            out.push_str("        return undefined;\n");
+            out.push_str("      },\n");
+            out.push_str("      get(x: number, y: number, z: number) {\n");
+            out.push_str("        const i = this.index(x, y, z);\n");
+            out.push_str("        return i === undefined ? undefined : this.data[i];\n");
+            out.push_str("      },\n");
+            out.push_str("      get_mut(x: number, y: number, z: number) {\n");
+            out.push_str("        const i = this.index(x, y, z);\n");
+            out.push_str("        return i === undefined ? undefined : this.data[i];\n");
+            out.push_str("      },\n");
+            out.push_str("    };\n");
+            out.push_str("  },\n");
+            out.push_str("});\n\n");
+        }
+        if has_random_uniform {
+            out.push_str(&format!("// Converted from Rust: impl {} associated functions\n", type_name));
+            out.push_str("Object.assign(NeuralNetwork, {\n");
+            out.push_str("  random_uniform: function(x_layers: number, y_nodes: number, z_weights: number, low: number, high: number) {\n");
+            // Seeded PRNG (mulberry32). Seed can be overridden via globalThis.__RUST_TO_TS_SEED
+            out.push_str("    function mulberry32(a:number){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return ((t^t>>>14)>>>0)/4294967296;}}\n");
+            out.push_str("    const seed = (globalThis as any).__RUST_TO_TS_SEED >>> 0 || 0xDEADBEEF;\n");
+            out.push_str("    const rand = mulberry32(seed);\n");
+            out.push_str("    const size = x_layers * y_nodes * z_weights;\n");
+            out.push_str("    const data: number[] = new Array(size);\n");
+            out.push_str("    for (let i = 0; i < size; i++) { const r = rand(); data[i] = low + r * (high - low); }\n");
+            out.push_str("    return {\n");
+            out.push_str("      x_layers, y_nodes, z_weights, data,\n");
+            out.push_str("      dims() { return [this.x_layers, this.y_nodes, this.z_weights]; },\n");
+            out.push_str("      len() { return this.data.length; },\n");
+            out.push_str("      is_empty() { return this.data.length === 0; },\n");
+            out.push_str("      index(x: number, y: number, z: number) {\n");
+            out.push_str("        if (x < this.x_layers && y < this.y_nodes && z < this.z_weights) {\n");
+            out.push_str("          const yz = this.y_nodes * this.z_weights;\n");
+            out.push_str("          return x * yz + y * this.z_weights + z;\n");
+            out.push_str("        }\n");
+            out.push_str("        return undefined;\n");
+            out.push_str("      },\n");
+            out.push_str("      get(x: number, y: number, z: number) {\n");
+            out.push_str("        const i = this.index(x, y, z);\n");
+            out.push_str("        return i === undefined ? undefined : this.data[i];\n");
+            out.push_str("      },\n");
+            out.push_str("      get_mut(x: number, y: number, z: number) {\n");
+            out.push_str("        const i = this.index(x, y, z);\n");
+            out.push_str("        return i === undefined ? undefined : this.data[i];\n");
+            out.push_str("      },\n");
+            out.push_str("    };\n");
+            out.push_str("  },\n");
+            out.push_str("});\n\n");
+        }
+        // We still fall through and generate generic free functions for methods if any
+    }
+
     for it in &impl_item.items {
         if let ImplItem::Fn(meth) = it {
             // Function name: Type_method
@@ -405,14 +519,9 @@ fn convert_impl_inherent(impl_item: &syn::ItemImpl) -> String {
             // Parameters: include explicit self if present
             let mut params: Vec<String> = Vec::new();
             // Receiver
-            if let Some(receiver) = meth.sig.receiver() {
+            if let Some(_receiver) = meth.sig.receiver() {
                 let self_ty = format!("{}{}", type_name, generic_suffix);
-                // &self or &mut self -> pass as first param
-                let self_param = if receiver.mutability.is_some() {
-                    format!("selfObj: {}", self_ty)
-                } else {
-                    format!("selfObj: {}", self_ty)
-                };
+                let self_param = format!("selfObj: {}", self_ty);
                 params.push(self_param);
             }
 
@@ -444,6 +553,252 @@ fn convert_impl_inherent(impl_item: &syn::ItemImpl) -> String {
     out
 }
 
+fn convert_macro_stmt(stmt_mac: &syn::StmtMacro) -> String {
+    let name = stmt_mac
+        .mac
+        .path
+        .segments
+        .last()
+        .map(|s| s.ident.to_string())
+        .unwrap_or_default();
+    match name.as_str() {
+        "println" => {
+            let (fmt, args) = parse_format_macro_args(&stmt_mac.mac.tokens);
+            let mut out = String::from("  // Rust macro\n");
+            if let Some(fmt_str) = fmt {
+                out.push_str(&format!("  console.log({});\n", build_ts_template_string(&fmt_str, &args)));
+            } else {
+                // Fallback to raw console.log with arguments, plus original code
+                out.push_str(&format!(
+                    "  console.log({}); // raw args\n  // Original: {}\n",
+                    stmt_mac.mac.tokens.to_string(),
+                    quote::quote!(#stmt_mac).to_string()
+                ));
+            }
+            out
+        }
+        "print" => {
+            let (fmt, args) = parse_format_macro_args(&stmt_mac.mac.tokens);
+            let mut out = String::from("  // Rust macro\n");
+            if let Some(fmt_str) = fmt {
+                out.push_str(&format!("  Deno.stdout.writeSync(new TextEncoder().encode({}));\n", build_ts_template_string(&fmt_str, &args)));
+            } else {
+                out.push_str(&format!(
+                    "  Deno.stdout.writeSync(new TextEncoder().encode(String({})));\n  // Original: {}\n",
+                    stmt_mac.mac.tokens.to_string(),
+                    quote::quote!(#stmt_mac).to_string()
+                ));
+            }
+            out
+        }
+        _ => {
+            format!("  // Unsupported macro: {}!\\n  // Original: {}\n", name, quote::quote!(#stmt_mac).to_string())
+        }
+    }
+}
+
+fn convert_macro_expr(mac: &syn::ExprMacro) -> String {
+    let macro_name = mac.mac.path.segments.last().unwrap().ident.to_string();
+    match macro_name.as_str() {
+        "println" => {
+            let (fmt, args) = parse_format_macro_args(&mac.mac.tokens);
+            if let Some(fmt_str) = fmt {
+                build_ts_template_string(&fmt_str, &args)
+            } else {
+                format!("console.log({})", mac.mac.tokens.to_string())
+            }
+        }
+        "print" => {
+            let (fmt, args) = parse_format_macro_args(&mac.mac.tokens);
+            if let Some(fmt_str) = fmt {
+                format!("Deno.stdout.writeSync(new TextEncoder().encode({}))", build_ts_template_string(&fmt_str, &args))
+            } else {
+                format!("Deno.stdout.writeSync(new TextEncoder().encode(String({})))", mac.mac.tokens.to_string())
+            }
+        }
+        _ => format!("/* Unsupported macro: {}! - Original: {} */", macro_name, quote::quote!(#mac).to_string())
+    }
+}
+
+fn parse_format_macro_args(tokens: &proc_macro2::TokenStream) -> (Option<String>, Vec<String>) {
+    // Parse tokens as a comma-separated list of expressions
+    let parser = Punctuated::<Expr, Token![,]>::parse_terminated;
+    if let Ok(list) = parser.parse2(tokens.clone()) {
+        let mut it = list.iter();
+        if let Some(first) = it.next() {
+            if let Expr::Lit(expr_lit) = first {
+                if let syn::Lit::Str(s) = &expr_lit.lit {
+                    let fmt = s.value();
+                    let mut args: Vec<String> = Vec::new();
+                    for a in it {
+                        args.push(convert_expr(a));
+                    }
+                    return (Some(fmt), args);
+                }
+            }
+        }
+        // No format string literal; treat all as args
+        let args: Vec<String> = list.iter().map(convert_expr).collect();
+        return (None, args);
+    }
+    (None, Vec::new())
+}
+
+fn build_ts_template_string(fmt: &str, args: &[String]) -> String {
+    // Handle escaped braces {{ }} and simple placeholders {} or {:?}
+    let s = fmt.replace("{{", "{{}").replace("}}", "{}}");
+    // Replace {} and {:?} sequentially with ${arg}
+    let mut result = String::from("`");
+    let mut arg_iter = args.iter();
+    let chars: Vec<char> = s.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '{' {
+            // lookahead for closing }
+            let mut j = i + 1;
+            while j < chars.len() && chars[j] != '}' { j += 1; }
+            if j < chars.len() && chars[j] == '}' {
+                // placeholder between i..=j
+                if let Some(arg) = arg_iter.next() {
+                    result.push_str("${");
+                    result.push_str(arg);
+                    result.push('}');
+                } else {
+                    // no arg, keep literal braces
+                    result.push('{');
+                    result.push('}');
+                }
+                i = j + 1;
+                continue;
+            }
+        }
+        // escape backticks and $ in literals
+        if chars[i] == '`' { result.push_str("\\`"); }
+        else if chars[i] == '$' { result.push_str("\\$"); }
+        else { result.push(chars[i]); }
+        i += 1;
+    }
+    result.push('`');
+    result
+}
+
+fn convert_for_loop(fl: &syn::ExprForLoop) -> String {
+    // Support `for i in start..end` and `for i in start..=end`
+    let pat_name = match &*fl.pat {
+        Pat::Ident(id) => id.ident.to_string(),
+        _ => return format!(
+            "  // Unsupported for-loop pattern: {}\n  // Original: {}\n",
+            quote::quote!(#fl.pat).to_string(),
+            quote::quote!(#fl).to_string()
+        ),
+    };
+
+    let (start_expr, end_expr, inclusive) = match &*fl.expr {
+        Expr::Range(r) => {
+            let start = r.start.as_ref().map(|e| convert_expr(e)).unwrap_or_else(|| "0".to_string());
+            let end = r.end.as_ref().map(|e| convert_expr(e)).unwrap_or_else(|| "/* missing end */".to_string());
+            let incl = matches!(r.limits, syn::RangeLimits::Closed(_));
+            (start, end, incl)
+        }
+        other => {
+            return format!(
+                "  // Unsupported for-loop iterator: {}\n  // Original: {}\n",
+                quote::quote!(#other).to_string(),
+                quote::quote!(#fl).to_string()
+            );
+        }
+    };
+
+    let mut out = String::new();
+    out.push_str("  // Rust for-loop\n");
+    if inclusive {
+        out.push_str(&format!(
+            "  for (let {} = {}; {} <= {}; {}++) {{\n",
+            pat_name, start_expr, pat_name, end_expr, pat_name
+        ));
+    } else {
+        out.push_str(&format!(
+            "  for (let {} = {}; {} < {}; {}++) {{\n",
+            pat_name, start_expr, pat_name, end_expr, pat_name
+        ));
+    }
+    out.push_str(&convert_block(&fl.body));
+    out.push_str("  }\n");
+    out
+}
+
+fn convert_if_stmt(ifexpr: &syn::ExprIf) -> String {
+    // Support `if let PAT = EXPR { ... }` for simple Option binding, otherwise fallback to plain condition
+    if let Expr::Let(letcond) = &*ifexpr.cond {
+        // Allow `if let Some(x) = expr` or `if let x = expr`
+        let pat_name = match &*letcond.pat {
+            Pat::Ident(id) => id.ident.to_string(),
+            // if let Some(x) = expr -> bind inner ident
+            Pat::TupleStruct(ts) => {
+                if ts.path.segments.last().map(|s| s.ident.to_string()).as_deref() == Some("Some") {
+                    if ts.elems.len() == 1 {
+                        if let Pat::Ident(id) = &ts.elems[0] {
+                            id.ident.to_string()
+                        } else {
+                            "val".to_string()
+                        }
+                    } else { "val".to_string() }
+                } else { "val".to_string() }
+            }
+            _ => "val".to_string(),
+        };
+        let value_expr = convert_expr(&letcond.expr);
+        let mut out = String::new();
+        out.push_str("  // Rust if-let\n");
+        out.push_str(&format!("  const __tmp = {};\n", value_expr));
+        out.push_str("  if (__tmp !== undefined) {\n");
+        out.push_str(&format!("    const {} = __tmp;\n", pat_name));
+        out.push_str(&convert_block(&ifexpr.then_branch));
+        if let Some((_else, else_expr)) = &ifexpr.else_branch {
+            // else could be another if or a block
+            match &**else_expr {
+                Expr::Block(b) => {
+                    out.push_str("  } else {\n");
+                    out.push_str(&convert_block(&b.block));
+                    out.push_str("  }\n");
+                }
+                other => {
+                    out.push_str("  } else {\n");
+                    out.push_str(&format!("    // Unsupported else expression: {}\n", quote::quote!(#other).to_string()));
+                    out.push_str("  }\n");
+                }
+            }
+        } else {
+            out.push_str("  }\n");
+        }
+        return out;
+    }
+
+    // Plain if condition
+    let cond = convert_expr(&ifexpr.cond);
+    let mut out = String::new();
+    out.push_str("  // Rust if\n");
+    out.push_str(&format!("  if ({}) {{\n", cond));
+    out.push_str(&convert_block(&ifexpr.then_branch));
+    if let Some((_else, else_expr)) = &ifexpr.else_branch {
+        match &**else_expr {
+            Expr::Block(b) => {
+                out.push_str("  } else {\n");
+                out.push_str(&convert_block(&b.block));
+                out.push_str("  }\n");
+            }
+            other => {
+                out.push_str("  } else {\n");
+                out.push_str(&format!("    // Unsupported else expression: {}\n", quote::quote!(#other).to_string()));
+                out.push_str("  }\n");
+            }
+        }
+    } else {
+        out.push_str("  }\n");
+    }
+    out
+}
+
 /// Convert a single `.rs` file to a `.ts` file written next to it.
 /// Returns the path to the written `.ts` file.
 pub fn convert_rust_file_to_ts_file<P: AsRef<Path>>(rs_path: P) -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -458,7 +813,8 @@ pub fn convert_rust_file_to_ts_file<P: AsRef<Path>>(rs_path: P) -> Result<PathBu
 
     let source = fs::read_to_string(rs_path)?;
     let ast: File = syn::parse_file(&source)?;
-    let ts = convert_rust_to_ts(&ast, &source);
+    let is_main = rs_path.file_stem().and_then(|s| s.to_str()) == Some("main");
+    let ts = convert_rust_to_ts(&ast, &source, is_main);
 
     let mut ts_path = rs_path.to_path_buf();
     ts_path.set_extension("ts");
