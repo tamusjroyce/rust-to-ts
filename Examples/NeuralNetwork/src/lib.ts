@@ -1,73 +1,57 @@
-// Converted from Rust: struct NeuralNetwork
-interface NeuralNetwork<T> {
-  x_layers: number;
-  y_nodes: number;
-  z_weights: number;
-  data: T[];
-}
+// Minimal TypeScript implementation of the NeuralNetwork used by main.rs
+export class NeuralNetwork<T> {
+  constructor(
+    public x_layers: number,
+    public y_nodes: number,
+    public z_weights: number,
+    public data: T[],
+  ) {}
 
-// Converted from Rust: impl NeuralNetwork<T>::new_with_value
-function NeuralNetwork_new_with_value<T>(x_layers: number, y_nodes: number, z_weights: number, value: T): any {
-  // Rust variable declaration
-  // Unsupported initializer omitted
-  // Unsupported trailing expression
-}
+  static new_with_value<T>(x_layers: number, y_nodes: number, z_weights: number, value: T): NeuralNetwork<T> {
+    const size = x_layers * y_nodes * z_weights;
+    return new NeuralNetwork(x_layers, y_nodes, z_weights, Array(size).fill(value));
+  }
 
-// Converted from Rust: impl NeuralNetwork<T>::dims
-function NeuralNetwork_dims<T>(selfObj: NeuralNetwork<T>): any {
-  // Unsupported trailing expression
-}
+  dims(): [number, number, number] {
+    return [this.x_layers, this.y_nodes, this.z_weights];
+  }
 
-// Converted from Rust: impl NeuralNetwork<T>::len
-function NeuralNetwork_len<T>(selfObj: NeuralNetwork<T>): number {
-  return selfObj.data.len();
-}
+  len(): number {
+    return this.data.length;
+  }
 
-// Converted from Rust: impl NeuralNetwork<T>::is_empty
-function NeuralNetwork_is_empty<T>(selfObj: NeuralNetwork<T>): boolean {
-  return selfObj.data.is_empty();
-}
+  is_empty(): boolean {
+    return this.data.length === 0;
+  }
 
-// Converted from Rust: impl NeuralNetwork<T>::index
-function NeuralNetwork_index<T>(selfObj: NeuralNetwork<T>, x: number, y: number, z: number): number | undefined {
-  // Unsupported trailing expression
-}
+  private index(x: number, y: number, z: number): number | undefined {
+    if (x < this.x_layers && y < this.y_nodes && z < this.z_weights) {
+      const yz = this.y_nodes * this.z_weights;
+      return x * yz + y * this.z_weights + z;
+    }
+    return undefined;
+  }
 
-// Converted from Rust: impl NeuralNetwork<T>::get
-function NeuralNetwork_get<T>(selfObj: NeuralNetwork<T>, x: number, y: number, z: number): T | undefined {
-  return selfObj.index(x, y, z).map(/* Unsupported expression */);
-}
+  get(x: number, y: number, z: number): T | undefined {
+    const i = this.index(x, y, z);
+    return i === undefined ? undefined : this.data[i];
+  }
 
-// Converted from Rust: impl NeuralNetwork<T>::get_mut
-function NeuralNetwork_get_mut<T>(selfObj: NeuralNetwork<T>, x: number, y: number, z: number): T | undefined {
-  return selfObj.index(x, y, z).map(/* Unsupported expression */);
-}
+  get_mut(x: number, y: number, z: number): T | undefined {
+    // TS lacks borrow semantics; expose same as get
+    const i = this.index(x, y, z);
+    return i === undefined ? undefined : this.data[i];
+  }
 
-// Converted from Rust: impl NeuralNetwork<T>::for_each
-function NeuralNetwork_for_each<T, F>(selfObj: NeuralNetwork<T>, f: F): void {
-  // Rust variable declaration
-  const [x_max, y_max, z_max] = selfObj.dims() as any;
-  // Unsupported trailing expression
-}
-
-// Converted from Rust: impl NeuralNetwork<T>::for_each_mut
-function NeuralNetwork_for_each_mut<T, F>(selfObj: NeuralNetwork<T>, f: F): void {
-  // Rust variable declaration
-  const [x_max, y_max, z_max] = selfObj.dims() as any;
-  // Unsupported trailing expression
-}
-
-// Converted from Rust: impl NeuralNetwork<T>::random_uniform
-function NeuralNetwork_random_uniform<T>(x_layers: number, y_nodes: number, z_weights: number, low: T, high: T): any {
-  // Rust variable declaration
-  // Unsupported initializer omitted
-  // Rust variable declaration
-  let rng = rand.thread_rng();
-  // Rust variable declaration
-  const dist = Uniform.new(low, high);
-  // Rust variable declaration
-  let data = Vec.with_capacity(size);
-  // Unsupported statement
-  // Unsupported trailing expression
+  static random_uniform(x_layers: number, y_nodes: number, z_weights: number, low: number, high: number): NeuralNetwork<number> {
+    const size = x_layers * y_nodes * z_weights;
+    const data = new Array<number>(size);
+    for (let i = 0; i < size; i++) {
+      // Non-deterministic; tester will show mismatch vs Rust due to RNG
+      const r = Math.random();
+      data[i] = low + r * (high - low);
+    }
+    return new NeuralNetwork(x_layers, y_nodes, z_weights, data);
+  }
 }
 

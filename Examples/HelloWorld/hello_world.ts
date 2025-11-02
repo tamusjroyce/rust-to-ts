@@ -1,5 +1,5 @@
 // Converted from Rust: fn main(...)
-function main(): void {
+export function main(): void {
   // Rust macro
   console.log("Hello, World!");
   // Rust variable declaration

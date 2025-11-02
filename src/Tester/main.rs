@@ -27,8 +27,8 @@ fn main() {
         }
     };
 
-    // 1) Build and run the Rust example
-    let rust_out = match run_rust_example(&rs_file) {
+    // 1) Build and run the Rust example (prefer Cargo if present)
+    let rust_out = match run_rust_example(&target_path, &rs_file) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("Failed to run Rust example: {}", e);
@@ -84,6 +84,14 @@ fn find_example_files(root: &Path) -> Option<(PathBuf, PathBuf)> {
 
     let _ = walk(root, &mut rs_map, &mut ts_map);
 
+    // Prefer matching 'main.rs' <-> 'main.ts' if present
+    if let Some(r_main) = rs_map.iter().find(|p| p.file_stem().and_then(OsStr::to_str) == Some("main")) {
+        if let Some(t_main) = ts_map.iter().find(|p| p.file_stem().and_then(OsStr::to_str) == Some("main")) {
+            return Some((r_main.clone(), t_main.clone()));
+        }
+    }
+
+    // Fallback: first pair sharing the same stem
     for r in &rs_map {
         if let Some(stem) = r.file_stem().and_then(OsStr::to_str) {
             if let Some(t) = ts_map.iter().find(|t| t.file_stem().and_then(OsStr::to_str) == Some(stem)) {
@@ -94,7 +102,28 @@ fn find_example_files(root: &Path) -> Option<(PathBuf, PathBuf)> {
     None
 }
 
-fn run_rust_example(rs_file: &Path) -> Result<String, String> {
+fn run_rust_example(example_root: &Path, rs_file: &Path) -> Result<String, String> {
+    // If this example is a Cargo project, run it via cargo to resolve dependencies
+    let manifest = example_root.join("Cargo.toml");
+    if manifest.exists() {
+        let cargo_cmd = if cfg!(windows) { "cargo.exe" } else { "cargo" };
+        let output = Command::new(cargo_cmd)
+            .args(["run", "--quiet", "--manifest-path"])
+            .arg(&manifest)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .map_err(|e| format!("failed to run cargo: {}", e))?;
+        if !output.status.success() {
+            return Err(format!(
+                "cargo run failed with status {}\nStderr:\n{}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+        return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+    }
+
     // Compile with rustc into target/tmp/<stem> (platform-specific exe name)
     let stem = rs_file
         .file_stem()
@@ -136,28 +165,32 @@ fn run_ts_example(ts_file: &Path) -> Result<String, String> {
 }
 
 fn run_with_deno(ts_file: &Path) -> Result<String, String> {
+    // Build a small wrapper that imports the module and calls an exported main(),
+    // falling back to global main() if needed.
     let stem = ts_file
         .file_stem()
         .and_then(OsStr::to_str)
         .ok_or_else(|| "Invalid TS file name".to_string())?;
 
-    // Read the original TS source
-    let ts_source = fs::read_to_string(ts_file)
-        .map_err(|e| format!("failed to read TS file {}: {}", ts_file.display(), e))?;
+    let abs = std::fs::canonicalize(ts_file)
+        .map_err(|e| format!("failed to resolve TS path {}: {}", ts_file.display(), e))?;
+    let mut abs_str = abs.to_string_lossy().to_string();
+    if abs_str.starts_with("\\\\?\\") { // strip Windows verbatim prefix \\?\
+        abs_str = abs_str[4..].to_string();
+    }
+    let mut file_url = String::from("file:///");
+    file_url.push_str(&abs_str.replace('\\', "/"));
 
-    // Create a wrapper that invokes main() at the end
     let tmp_dir = PathBuf::from("target/tmp");
     let _ = fs::create_dir_all(&tmp_dir);
     let wrapper_path = tmp_dir.join(format!("{}_deno_run.ts", stem));
-    let mut wrapper_code = String::new();
-    wrapper_code.push_str(&ts_source);
-    wrapper_code.push_str(
-        "\n// auto-generated wrapper for Deno\n// call main() if present\ntry {\n  // @ts-ignore - main may not be declared in all examples\n  if (typeof main === 'function') main();\n} catch (e) {\n  console.error(e);\n  Deno.exit(1);\n}\n",
+    let wrapper_code = format!(
+        "// auto-generated wrapper for Deno\nimport * as mod from \"{}\";\nasync function run() {{\n  if (typeof (mod as any).main === 'function') {{\n    await (mod as any).main();\n    return;\n  }}\n  // Fallback to global main if someone inlines the function into globalThis\n  const g: any = globalThis as any;\n  if (typeof g.main === 'function') {{\n    g.main();\n    return;\n  }}\n  console.error('No main() found to run');\n  Deno.exit(1);\n}}\nrun().catch((e) => {{ console.error(e); Deno.exit(1); }});\n",
+        file_url
     );
     fs::write(&wrapper_path, wrapper_code)
         .map_err(|e| format!("failed to write Deno wrapper: {}", e))?;
 
-    // Execute with Deno
     let deno_cmd = if cfg!(windows) { "deno.exe" } else { "deno" };
     let output = Command::new(deno_cmd)
         .arg("run")
