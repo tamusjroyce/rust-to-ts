@@ -2,6 +2,14 @@
 function main(): void {
   // Rust macro
   console.log("Hello, World!");
+  // Rust variable declaration
+  const sum = add(2, 2);
+  // Rust macro
+  console.log(`add(2, 2) = ${sum}`);
+  // Rust variable declaration (manual fix for struct literal)
+  const person: Person = { name: "Not Sure", age: 30 };
+  // Rust macro
+  console.log(`Person: name=${person.name}, age=${person.age}`);
 }
 
 // Converted from Rust: fn add(...)
