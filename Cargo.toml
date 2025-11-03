@@ -2,6 +2,10 @@
 name = "rust-to-ts"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+authors = ["TamusJRoyce"]
+homepage = "https://github.com/TamusJRoyce/typescript-rs"
+repository = "https://github.com/TamusJRoyce/typescript-rs"
 
 [dependencies]
 syn = { version = "2.0", features = ["full", "parsing", "extra-traits"] }

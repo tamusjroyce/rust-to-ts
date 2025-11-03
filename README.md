@@ -1,45 +1,132 @@
-# Rust to TypeScript Converter using SWC
+# Rust ⇄ TypeScript Converter & Tester
 
-This project is a Rust application that converts Rust code into TypeScript using the SWC crate. It leverages the abstract syntax tree (AST) representations of Rust code to generate equivalent TypeScript code, including comments that indicate the original Rust lines.
+This workspace contains:
 
-## Project Structure
+- A Rust→TypeScript converter binary (`rust-to-ts`) that walks a folder (e.g. `Examples/*`), converts `.rs` files to `.ts` side-by-side, and keeps unsupported Rust embedded as comments.
+- A cross-runtime tester binary (`tester`) that runs a Rust example (via Cargo) and the converted TypeScript (via Deno), then compares the console output.
 
-- `src/main.rs`: Entry point of the application. Initializes the converter and sets up necessary components.
-- `src/ast/mod.rs`: Defines the AST structures for Rust code, including types and functions for parsing and manipulating the Rust AST.
-- `src/converter/mod.rs`: Contains the logic for converting Rust AST nodes to TypeScript AST nodes. It traverses the Rust AST and generates TypeScript code with comments indicating the source Rust lines.
-- `src/utils/mod.rs`: Provides utility functions for formatting and error handling during the conversion process.
-- `Cargo.toml`: Configuration file for the Rust project, specifying metadata, dependencies (including SWC), and build settings.
+It’s designed to help iterate on runnable parity between Rust sample code and its generated TypeScript counterpart.
 
-## Getting Started
+Note: This project and the docs were largely “vibed” using Copilot Pro (GPT-5) to accelerate iteration and polish.
 
-To get started with the project, follow these steps:
+## How it works
 
-1. **Clone the repository**:
-   ```
-   git clone <repository-url>
-   cd rust-to-ts-swc
-   ```
+- Converter
+  - Parses Rust using `syn/quote/proc-macro2` and emits TypeScript.
+  - Adds simple mappings (println! → console.log, for-ranges, if-let Some, Option/Vec types, etc.).
+  - For example `main.rs`, injects imports for sibling `lib.ts` and exports `main()`.
+  - For `Examples/NeuralNetwork`, it emits a TS runtime object for `NeuralNetwork` plus helpers to keep it runnable.
+  - Unsupported constructs are preserved as comments so the TS still parses and runs.
 
-2. **Install Rust**: Ensure you have Rust installed on your machine. You can install it from [rust-lang.org](https://www.rust-lang.org/).
+- Tester
+  - Detects Cargo examples and runs them with `cargo run`.
+  - Executes TypeScript with Deno via a tiny wrapper that imports and calls `main()`.
+  - For seeded randomness parity, the wrapper injects globals so TS can pick the same RNG algorithm and seed.
+  - Prints both outputs with labels and checks exact equality.
 
-3. **Build the project**:
-   ```
-   cargo build
-   ```
+## Requirements
 
-4. **Run the application**:
-   ```
-   cargo run
-   ```
+- Rust toolchain (Cargo)
+- Deno (to run the generated TypeScript)
 
-## Usage
+## Build
 
-The application takes Rust code as input and outputs the corresponding TypeScript code. The generated TypeScript will include comments that reference the original Rust lines for easier tracking and understanding.
+```powershell
+cargo build --bins
+```
 
-## Contributing
+## Convert an example
 
-Contributions are welcome! Please feel free to submit a pull request or open an issue for any enhancements or bug fixes.
+```powershell
+cargo run --bin rust-to-ts -- Examples/NeuralNetwork
+```
+
+This will write `src/*.ts` next to each `src/*.rs` inside `Examples/NeuralNetwork`.
+
+## Run tester (exact parity example)
+
+NeuralNetwork supports seeded RNG selection that is mirrored in TS to achieve exact parity. For example, ChaCha8 with a fixed seed:
+
+```powershell
+cargo run --bin tester -- Examples/NeuralNetwork --rng=chacha8 --seed=42
+```
+
+Sample output:
+
+```
+Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+Running `target\debug\tester.exe Examples/NeuralNetwork --rng=chacha8 --seed=42`
+Outputs match exactly.
+--- Rust ---
+RNG: chacha8
+NeuralNetwork<f64> dims: x(layers)=3, y(nodes)=4, z(weights)=2 | total elements=24
+nn[0, 0, 0] = -0.260221678763628
+nn[0, 0, 1] = 0.8884351472370327
+nn[0, 1, 0] = 0.12749235378578305
+nn[0, 1, 1] = -0.8611383140087128
+nn[1, 0, 0] = 0.2225218079984188
+nn[1, 0, 1] = 0.017620211001485586
+nn[1, 1, 0] = 0.39068748988211155
+nn[1, 1, 1] = 0.44959122501313686
+
+--- Deno ---
+RNG: chacha8
+NeuralNetwork<f64> dims: x(layers)=3, y(nodes)=4, z(weights)=2 | total elements=24
+nn[0, 0, 0] = -0.260221678763628
+nn[0, 0, 1] = 0.8884351472370327
+nn[0, 1, 0] = 0.12749235378578305
+nn[0, 1, 1] = -0.8611383140087128
+nn[1, 0, 0] = 0.2225218079984188
+nn[1, 0, 1] = 0.017620211001485586
+nn[1, 1, 0] = 0.39068748988211155
+nn[1, 1, 1] = 0.44959122501313686
+```
+
+Other RNGs supported (Rust and TS): `mulberry64`, `chacha8`. PCG64 support on TS can be added similarly if needed.
+
+## Tips
+
+- If TS fails to parse due to unsupported Rust constructs, the converter emits placeholders so the file still runs; unsupported parts are annotated as comments for future improvements.
+- The converter writes files side-by-side; you can re-run it safely as you iterate on Rust sources.
+
+## Credits
+
+- Copyright © 2025 TamusJRoyce. Licensed under MIT.
+- This project and documentation were largely “vibed” using Copilot Pro (GPT-5).
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for more details.
+MIT — see `LICENSE`.
+
+See `THIRD_PARTY_NOTICES.md` for dependency licenses and algorithm provenance notes. No GPL/LGPL/AGPL code is included.
+
+## Disclaimer (copilot driven):
+
+- Project license
+  - Top-level `Cargo.toml` declares `license = "MIT"`.
+  - `LICENSE` is present with MIT terms.
+  - `README.md` aligns with MIT.
+
+- Rust dependencies and their licenses
+  - Converter/Tester:
+    - syn (MIT OR Apache-2.0)
+    - quote (MIT OR Apache-2.0)
+    - proc-macro2 (MIT OR Apache-2.0)
+  - Example `Examples/NeuralNetwork`:
+    - rand (MIT OR Apache-2.0), which may pull transitive crates like `rand_core` and `rand_chacha` (also MIT OR Apache-2.0)
+
+- Generated/embedded TypeScript runtime bits
+  - mulberry32 helper: well-known CC0/public-domain snippet; acknowledged in `THIRD_PARTY_NOTICES.md`.
+  - splitmix64 (Mulberry64-like step): algorithmic constants; implementation here is original (no third-party code copied).
+  - ChaCha8 (reduced-round): algorithm by D. J. Bernstein; TypeScript and Rust implementations here are original.
+  - PCG64 note: the Rust "PCG64-like" is a minimal, original demo; TS currently falls back. If the official PCG reference code is used in the future, it’s under Apache-2.0 and will be noted accordingly.
+
+- Codebase scan
+  - No files contain GPL/LGPL/AGPL headers or references.
+  - No vendored third-party source files.
+  - Only permissive-license crates are used.
+
+- Conclusion
+  - No GPL/LGPL/AGPL code detected in this repository.
+  - All dependencies are permissively licensed and compatible with MIT.
+  - Runtime snippets are original or public domain.
