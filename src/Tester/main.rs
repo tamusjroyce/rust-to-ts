@@ -4,12 +4,14 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 fn main() {
-    // Usage: tester <Examples/HelloWorld>
+    // Usage: tester <Examples/HelloWorld> [-- <extra args forwarded to example>]
     let mut args = std::env::args().skip(1);
     let target = args.next().unwrap_or_else(|| {
         eprintln!("Usage: tester <Examples/HelloWorld>");
         std::process::exit(2);
     });
+    // Collect extra args (e.g., --rng=mulberry64 --seed=123)
+    let extra_args: Vec<String> = args.collect();
 
     let target_path = PathBuf::from(&target);
     if !target_path.exists() {
@@ -28,7 +30,7 @@ fn main() {
     };
 
     // 1) Build and run the Rust example (prefer Cargo if present)
-    let rust_out = match run_rust_example(&target_path, &rs_file) {
+    let rust_out = match run_rust_example(&target_path, &rs_file, &extra_args) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("Failed to run Rust example: {}", e);
@@ -37,7 +39,7 @@ fn main() {
     };
 
     // 2) Build (if needed) and run the TypeScript example
-    let ts_out = match run_ts_example(&ts_file) {
+    let ts_out = match run_ts_example(&ts_file, &extra_args) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("Failed to run TypeScript example: {}", e);
@@ -102,14 +104,18 @@ fn find_example_files(root: &Path) -> Option<(PathBuf, PathBuf)> {
     None
 }
 
-fn run_rust_example(example_root: &Path, rs_file: &Path) -> Result<String, String> {
+fn run_rust_example(example_root: &Path, rs_file: &Path, extra_args: &[String]) -> Result<String, String> {
     // If this example is a Cargo project, run it via cargo to resolve dependencies
     let manifest = example_root.join("Cargo.toml");
     if manifest.exists() {
         let cargo_cmd = if cfg!(windows) { "cargo.exe" } else { "cargo" };
-        let output = Command::new(cargo_cmd)
-            .args(["run", "--quiet", "--manifest-path"])
-            .arg(&manifest)
+        let mut cmd = Command::new(cargo_cmd);
+        cmd.arg("run").arg("--quiet").arg("--manifest-path").arg(&manifest);
+        if !extra_args.is_empty() {
+            cmd.arg("--");
+            for a in extra_args { cmd.arg(a); }
+        }
+        let output = cmd
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
@@ -158,13 +164,13 @@ fn run_rust_example(example_root: &Path, rs_file: &Path) -> Result<String, Strin
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-fn run_ts_example(ts_file: &Path) -> Result<String, String> {
+fn run_ts_example(ts_file: &Path, extra_args: &[String]) -> Result<String, String> {
     // Prefer Deno to execute TypeScript directly. We create a tiny wrapper that
     // appends a call to `main();` so examples with a main() entrypoint run.
-    run_with_deno(ts_file)
+    run_with_deno(ts_file, extra_args)
 }
 
-fn run_with_deno(ts_file: &Path) -> Result<String, String> {
+fn run_with_deno(ts_file: &Path, extra_args: &[String]) -> Result<String, String> {
     // Build a small wrapper that imports the module and calls an exported main(),
     // falling back to global main() if needed.
     let stem = ts_file
@@ -184,8 +190,27 @@ fn run_with_deno(ts_file: &Path) -> Result<String, String> {
     let tmp_dir = PathBuf::from("target/tmp");
     let _ = fs::create_dir_all(&tmp_dir);
     let wrapper_path = tmp_dir.join(format!("{}_deno_run.ts", stem));
+    // Extract optional --seed=... and --rng=... from extra args to seed TS PRNG and select RNG
+    let mut js_preamble = String::new();
+    if let Some(seed_arg) = extra_args.iter().find(|a| a.starts_with("--seed=")) {
+        if let Some(v) = seed_arg.splitn(2, '=').nth(1) {
+            if let Ok(seed_val) = v.parse::<u64>() {
+                let seed32 = (seed_val & 0xFFFF_FFFF) as u32;
+                js_preamble.push_str(&format!("(globalThis as any).__RUST_TO_TS_SEED = {} as number;\n", seed32));
+                js_preamble.push_str(&format!("(globalThis as any).__RUST_TO_TS_SEED_U64 = BigInt(\"{}\");\n", seed_val));
+            }
+        }
+    }
+    if let Some(rng_arg) = extra_args.iter().find(|a| a.starts_with("--rng=")) {
+        if let Some(v) = rng_arg.splitn(2, '=').nth(1) {
+            let name = v.to_ascii_lowercase();
+            js_preamble.push_str(&format!("(globalThis as any).__RUST_TO_TS_RNG = \"{}\";\n", name));
+        }
+    }
+
     let wrapper_code = format!(
-        "// auto-generated wrapper for Deno\nimport * as mod from \"{}\";\nasync function run() {{\n  if (typeof (mod as any).main === 'function') {{\n    await (mod as any).main();\n    return;\n  }}\n  // Fallback to global main if someone inlines the function into globalThis\n  const g: any = globalThis as any;\n  if (typeof g.main === 'function') {{\n    g.main();\n    return;\n  }}\n  console.error('No main() found to run');\n  Deno.exit(1);\n}}\nrun().catch((e) => {{ console.error(e); Deno.exit(1); }});\n",
+        "// auto-generated wrapper for Deno\n{}import * as mod from \"{}\";\nasync function run() {{\n  if (typeof (mod as any).main === 'function') {{\n    await (mod as any).main();\n    return;\n  }}\n  // Fallback to global main if someone inlines the function into globalThis\n  const g: any = globalThis as any;\n  if (typeof g.main === 'function') {{\n    g.main();\n    return;\n  }}\n  console.error('No main() found to run');\n  Deno.exit(1);\n}}\nrun().catch((e) => {{ console.error(e); Deno.exit(1); }});\n",
+        js_preamble,
         file_url
     );
     fs::write(&wrapper_path, wrapper_code)

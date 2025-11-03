@@ -1,4 +1,6 @@
 use try1::NeuralNetwork;
+use try1::make_rng_from_args;
+use try1::rng_name_from_args;
 
 fn main() {
     // Example dimensions for the 3D grid:
@@ -7,11 +9,16 @@ fn main() {
     let y_nodes = 4usize;
     let z_weights = 2usize;
 
-    // Initialize with random values in [-1.0, 1.0]
-    let nn: NeuralNetwork<f32> = NeuralNetwork::random_uniform(x_layers, y_nodes, z_weights, -1.0, 1.0);
+    // Choose RNG by CLI: --rng=default|mulberry64|pcg64|chacha8 and optional --seed=<u64>
+    let rng_label = rng_name_from_args(std::env::args().skip(1));
+    let mut rng = make_rng_from_args(std::env::args().skip(1));
 
+    // Initialize with random values in [-1.0, 1.0] via selected RNG (f64)
+    let nn: NeuralNetwork<f64> = NeuralNetwork::random_uniform_f64_with(x_layers, y_nodes, z_weights, -1.0f64, 1.0f64, &mut *rng);
+
+    println!("RNG: {}", rng_label);
     let (x, y, z) = nn.dims();
-    println!("NeuralNetwork<f32> dims: x(layers)={}, y(nodes)={}, z(weights)={} | total elements={}",
+    println!("NeuralNetwork<f64> dims: x(layers)={}, y(nodes)={}, z(weights)={} | total elements={}",
         x, y, z, nn.len());
 
     // Print a small sample to verify
