@@ -11,7 +11,7 @@ pub fn convert_rust_to_ts(ast: &File, _source: &str, is_main_file: bool) -> Stri
     let mut output = String::new();
     if is_main_file {
         // Naive import for sibling lib when converting a main.rs
-        output.push_str("import { NeuralNetwork, make_rng_from_args } from \"./lib.ts\";\n\n");
+        output.push_str("import { NeuralNetwork, make_rng_from_args, env, std } from \"./lib.ts\";\n\n");
     }
     
     for item in &ast.items {
