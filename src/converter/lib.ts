@@ -11,18 +11,21 @@ export class NeuralNetwork<T> {
 
 export const env = {
   args() {
-    // crude simulation; real implementation would parse process.argv in Deno/node
-    const a = (globalThis as any).__RUST_TO_TS_ARGS || [];
+    const argv = (globalThis as any).__RUST_TO_TS_ARGS || [];
     return {
-      skip(n: number) { return { collect: () => a.slice(n) }; },
-      collect: () => a.slice(),
+      skip(n: number) { return { collect: () => argv.slice(n) }; },
+      collect: () => argv.slice(),
     } as any;
   }
 };
 
+// expose global for generated code using bare `env`/`std`
+(globalThis as any).env = env;
+
 export const std = {
   process: {
-    exit(code: number) { /* no-op for now */ },
+    exit(code: number) { /* no-op stub */ },
   },
   env,
 };
+(globalThis as any).std = std;
