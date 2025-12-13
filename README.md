@@ -13,6 +13,21 @@
 `cargo run --bin tester -- Examples/src`
 
 ## Details:
+##Work in progress
+
+The purpose of this code is a Proof of Concept that will later be turned into a MCP. So code conversions are first done by this tool. Then for the parts it can't convert. It uses AI to try and update this conversion tool. The translator continuously improves itself. And if that doesnt work. It hand it off to AI to try and make the conversion. A patch tracking those changes along the way
+
+The complex part is library conversions. This tends to add library specific hard-coding
+
+Another part is to build two-way binding between both languages
+
+A third is a GUI debuggable scratch or node-red/n8n like workflow as a language to dual bind with
+
+A forth is the neural network example, 3D graphing it in a UI across languages
+
+A fifth is using interpolation to build a similar 3d graph
+
+A sixth is using non-linear regression + kspace to combine two trained ANN'a into a similar one that training a regulae ANN would produce
 
 This workspace contains:
 

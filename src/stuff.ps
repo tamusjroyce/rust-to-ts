@@ -1,0 +1,118 @@
+import os
+import json
+from datetime import datetime, timezone
+from azure.core.credentials import AzureKeyCredential
+from azure.ai.formrecognizer import DocumentAnalysisClient
+from dotenv import load_dotenv
+
+dpi_scale = 300.0 / 72.0
+output_json_path = "output.json"
+output_ps_path = "output.ps"
+
+def escape_ps_string(s):
+    return s.replace("(", "\\(").replace(")", "\\)")
+
+def build_combined_json(receipts):
+    result_dict = receipts.to_dict()
+
+    analyze_result = {
+        "apiVersion": "2024-11-30",
+        "modelId": result_dict.get("modelId", "prebuilt-invoice"),
+        "stringIndexType": result_dict.get("stringIndexType", "utf16CodeUnit"),
+        "content": result_dict.get("content", ""),
+        "pages": result_dict.get("pages", [])
+    }
+
+    combined_json = {
+        "status": "succeeded",
+        "createdDateTime": datetime.now(timezone.utc).isoformat(),
+        "lastUpdatedDateTime": datetime.now(timezone.utc).isoformat(),
+        "analyzeResult": analyze_result
+    }
+
+    return combined_json
+
+def main():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+    try:
+        load_dotenv()
+        endpoint = os.getenv('ENDPOINT')
+        key = os.getenv('KEY')
+
+        fileUri = "https://github.com/MicrosoftLearning/mslearn-ai-information-extraction/blob/main/Labfiles/prebuilt-doc-intelligence/sample-invoice/sample-invoice.pdf?raw=true"
+        fileLocale = "en-US"
+        fileModelId = "prebuilt-invoice"
+
+        print(f"\nConnecting to Forms Recognizer at: {endpoint}")
+        print(f"Analyzing invoice at: {fileUri}")
+
+        document_analysis_client = DocumentAnalysisClient(
+            endpoint=endpoint, credential=AzureKeyCredential(key)
+        )
+
+        poller = document_analysis_client.begin_analyze_document_from_url(
+            fileModelId, fileUri, locale=fileLocale
+        )
+
+        receipts = poller.result()
+
+        for idx, receipt in enumerate(receipts.documents):
+            vendor_name = receipt.fields.get("VendorName")
+            if vendor_name:
+                print(f"\nVendor Name: {vendor_name.value}, with confidence {vendor_name.confidence}.")
+
+            customer_name = receipt.fields.get("CustomerName")
+            if customer_name:
+                print(f"Customer Name: '{customer_name.value}, with confidence {customer_name.confidence}.")
+
+            invoice_total = receipt.fields.get("InvoiceTotal")
+            if invoice_total:
+                print(f"Invoice Total: '{invoice_total.value.symbol}{invoice_total.value.amount}, with confidence {invoice_total.confidence}.")
+
+        # Build and save JSON
+        combined_json = build_combined_json(receipts)
+        json_string = json.dumps(combined_json, indent=2)
+
+        with open(output_json_path, "w", encoding="utf-8") as f:
+            f.write(json_string)
+
+        # Parse JSON string back to dict for layout extraction
+        data_dict = json.loads(json_string)
+        pages = data_dict.get("analyzeResult", {}).get("pages", [])
+
+        # Generate PostScript layout
+        with open(output_ps_path, "w", encoding="utf-8") as ps:
+            ps.write("%!PS-Adobe-3.0\n")
+            ps.write("/Courier findfont 12 scalefont setfont\n")
+            ps.write(f"{dpi_scale:.4f} {dpi_scale:.4f} scale\n")
+
+            for page in pages:
+                ps.write("%%Page: 1 1\n")
+
+                for line in page.get("lines", []):
+                    content = escape_ps_string(line.get("content", ""))
+                    polygon = line.get("polygon", [])
+                    if isinstance(polygon, list) and len(polygon) >= 2 and isinstance(polygon[0], (int, float)):
+                        x, y = polygon[0], polygon[1]
+                        ps.write("newpath\n")
+                        ps.write(f"{x:.2f} {y:.2f} moveto ({content}) show\n")
+
+                for barcode in page.get("barcodes", []):
+                    value = escape_ps_string(barcode.get("value", ""))
+                    polygon = barcode.get("polygon", [])
+                    if isinstance(polygon, list) and len(polygon) >= 2 and isinstance(polygon[0], (int, float)):
+                        x, y = polygon[0], polygon[1]
+                        ps.write("newpath\n")
+                        ps.write(f"{x:.2f} {y:.2f} moveto ({value}) show\n")
+
+                ps.write("showpage\n")
+            ps.write("%%EOF\n")
+
+    except Exception as ex:
+        print(f"\nError: {ex}")
+
+    print("\nAnalysis complete.\n")
+
+if __name__ == "__main__":
+    main()
