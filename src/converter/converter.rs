@@ -250,6 +250,19 @@ fn convert_expr(expr: &Expr) -> String {
             let parts: Vec<String> = t.elems.iter().map(convert_expr).collect();
             format!("[{}]", parts.join(", "))
         }
+        Expr::Struct(es) => {
+            // Map `Type { field: value, ... }` to a plain object literal
+            let mut fields: Vec<String> = Vec::new();
+            for field in &es.fields {
+                let name = match &field.member {
+                    syn::Member::Named(id) => id.to_string(),
+                    syn::Member::Unnamed(u) => u.index.to_string(),
+                };
+                let value = convert_expr(&field.expr);
+                fields.push(format!("{}: {}", name, value));
+            }
+            format!("{{ {} }}", fields.join(", "))
+        }
         Expr::Path(path) => {
             if let Some(ident) = path.path.get_ident() {
                 let name = ident.to_string();
@@ -313,6 +326,10 @@ fn convert_expr(expr: &Expr) -> String {
             if func == "rng_name_from_args" {
                 // Read RNG name from global injected by tester
                 return String::from("(((globalThis as any).__RUST_TO_TS_RNG||'default') as string)");
+            }
+            if func == "String.from" && args.len() == 1 {
+                // Map String::from(x) to just x
+                return args[0].clone();
             }
             if func == "NeuralNetwork.random_uniform_f32_with" || func == "NeuralNetwork.random_uniform_f64_with" {
                 // Map to JS-side helper without RNG parameter
@@ -686,7 +703,16 @@ fn convert_macro_expr(mac: &syn::ExprMacro) -> String {
                 format!("Deno.stdout.writeSync(new TextEncoder().encode(String({})))", mac.mac.tokens.to_string())
             }
         }
-        _ => format!("/* Unsupported macro: {}! - Original: {} */", macro_name, quote::quote!(#mac).to_string())
+        _ => {
+            // Produce a syntactically valid expression so object literals like
+            // `data: vec![value; size]` become `data: undefined /* ... */`
+            // instead of just a bare comment, which is invalid in TS.
+            format!(
+                "(undefined as any) /* Unsupported macro: {}! - Original: {} */",
+                macro_name,
+                quote::quote!(#mac).to_string()
+            )
+        }
     }
 }
 

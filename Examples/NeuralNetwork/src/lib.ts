@@ -25,7 +25,7 @@ interface Mulberry64 {
 
 // Converted from Rust: impl Mulberry64::new
 function Mulberry64_new(seed: number): any {
-  return (undefined as any) /* Unsupported expression: Self { state : seed } */;
+  return { state: seed };
 }
 
 // Skipped trait implementation (not yet supported)
@@ -42,7 +42,7 @@ function Pcg64_new(seed: number): any {
   // Unsupported initializer omitted
   // Rust variable declaration
   // Unsupported initializer omitted
-  return (undefined as any) /* Unsupported expression: Self { state : s , inc } */;
+  return { state: s, inc: inc };
 }
 
 // Converted from Rust: impl Pcg64::next_u64
@@ -173,7 +173,7 @@ export function make_rng_from_args<I, S>(args: I): Box {
 // Converted from Rust: fn rng_name_from_args(...)
 export function rng_name_from_args<I, S>(args: I): string {
   // Rust variable declaration
-  let name = String.from("default");
+  let name = "default";
   // Unsupported statement: while let Some (a) = args . next () { let a = a . as_ref () ; if let Some (v) = a . strip_prefix ("--rng=") { name = v . to_ascii_lowercase () ; } }
   return name;
 }
@@ -211,7 +211,7 @@ Object.assign(NeuralNetwork, {
 function NeuralNetwork_new_with_value<T>(x_layers: number, y_nodes: number, z_weights: number, value: T): any {
   // Rust variable declaration
   // Unsupported initializer omitted
-  return (undefined as any) /* Unsupported expression: Self { x_layers , y_nodes , z_weights , data : vec ! [value ; size] , } */;
+  return { x_layers: x_layers, y_nodes: y_nodes, z_weights: z_weights, data: (undefined as any) /* Unsupported macro: vec! - Original: vec ! [value ; size] */ };
 }
 
 // Converted from Rust: impl NeuralNetwork<T>::dims
@@ -388,7 +388,7 @@ function NeuralNetwork_random_uniform<T>(x_layers: number, y_nodes: number, z_we
   let data = Vec.with_capacity(size);
   // Unsupported for-loop pattern: for _ in 0 .. size { data . push (dist . sample (& mut rng)) ; } . pat
   // Original: for _ in 0 .. size { data . push (dist . sample (& mut rng)) ; }
-  return (undefined as any) /* Unsupported expression: Self { x_layers , y_nodes , z_weights , data , } */;
+  return { x_layers: x_layers, y_nodes: y_nodes, z_weights: z_weights, data: data };
 }
 
 // Converted from Rust: impl NeuralNetwork::random_uniform_f32_with
@@ -399,7 +399,7 @@ function NeuralNetwork_random_uniform_f32_with(x_layers: number, y_nodes: number
   let data = Vec.with_capacity(size);
   // Unsupported for-loop pattern: for _ in 0 .. size { data . push (rng . next_f32 (low , high)) ; } . pat
   // Original: for _ in 0 .. size { data . push (rng . next_f32 (low , high)) ; }
-  return (undefined as any) /* Unsupported expression: Self { x_layers , y_nodes , z_weights , data } */;
+  return { x_layers: x_layers, y_nodes: y_nodes, z_weights: z_weights, data: data };
 }
 
 // Converted from Rust: impl NeuralNetwork::random_uniform_f64_with
@@ -410,6 +410,6 @@ function NeuralNetwork_random_uniform_f64_with(x_layers: number, y_nodes: number
   let data = Vec.with_capacity(size);
   // Unsupported for-loop pattern: for _ in 0 .. size { data . push (rng . next_f64 (low , high)) ; } . pat
   // Original: for _ in 0 .. size { data . push (rng . next_f64 (low , high)) ; }
-  return (undefined as any) /* Unsupported expression: Self { x_layers , y_nodes , z_weights , data } */;
+  return { x_layers: x_layers, y_nodes: y_nodes, z_weights: z_weights, data: data };
 }
 

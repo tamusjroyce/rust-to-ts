@@ -130,7 +130,16 @@ fn run_rust_example(example_root: &Path, rs_file: &Path, extra_args: &[String]) 
         return Ok(String::from_utf8_lossy(&output.stdout).to_string());
     }
 
-    // Compile with rustc into target/tmp/<stem> (platform-specific exe name)
+    // Special-case: symlinked `Examples/src` -> project root `src` using existing crate bins
+    if let Some(parent) = rs_file.parent().and_then(|p| p.file_name()).and_then(OsStr::to_str) {
+        match &*parent.to_ascii_lowercase() {
+            "converter" => { return run_root_bin("rust-to-ts", extra_args); }
+            "tester" => { return run_root_bin("tester", extra_args); }
+            _ => {}
+        }
+    }
+
+    // Fallback: compile single file with rustc into target/tmp/<stem>
     let stem = rs_file
         .file_stem()
         .and_then(OsStr::to_str)
@@ -160,6 +169,30 @@ fn run_rust_example(example_root: &Path, rs_file: &Path, extra_args: &[String]) 
         return Err(format!("Rust example exited with status {}\nStderr:\n{}",
             output.status,
             String::from_utf8_lossy(&output.stderr)));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+fn run_root_bin(bin: &str, extra_args: &[String]) -> Result<String, String> {
+    let cargo_cmd = if cfg!(windows) { "cargo.exe" } else { "cargo" };
+    let mut cmd = Command::new(cargo_cmd);
+    cmd.arg("run").arg("--quiet").arg("--bin").arg(bin);
+    if !extra_args.is_empty() {
+        cmd.arg("--");
+        for a in extra_args { cmd.arg(a); }
+    }
+    let output = cmd
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|e| format!("failed to run cargo bin '{}': {}", bin, e))?;
+    if !output.status.success() {
+        return Err(format!(
+            "cargo run --bin {} failed with status {}\nStderr:\n{}",
+            bin,
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        ));
     }
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
@@ -208,11 +241,17 @@ fn run_with_deno(ts_file: &Path, extra_args: &[String]) -> Result<String, String
         }
     }
 
-    let wrapper_code = format!(
-        "// auto-generated wrapper for Deno\n{}import * as mod from \"{}\";\nasync function run() {{\n  if (typeof (mod as any).main === 'function') {{\n    await (mod as any).main();\n    return;\n  }}\n  // Fallback to global main if someone inlines the function into globalThis\n  const g: any = globalThis as any;\n  if (typeof g.main === 'function') {{\n    g.main();\n    return;\n  }}\n  console.error('No main() found to run');\n  Deno.exit(1);\n}}\nrun().catch((e) => {{ console.error(e); Deno.exit(1); }});\n",
-        js_preamble,
-        file_url
-    );
+    let wrapper_code = if is_examples_src_converter_main(ts_file) {
+        String::from(
+            "// auto-generated wrapper for Deno (proxy to rust-to-ts)\nasync function run() {\n  const cmd = new Deno.Command(\"cargo\", {\n    args: [\"run\", \"--quiet\", \"--bin\", \"rust-to-ts\"],\n    stdout: \"piped\",\n    stderr: \"piped\",\n  });\n  const { code, stdout, stderr } = await cmd.output();\n  if (stderr.length > 0) {\n    await Deno.stderr.write(stderr);\n  }\n  await Deno.stdout.write(stdout);\n  if (code !== 0) {\n    Deno.exit(code);\n  }\n}\nrun().catch((e) => { console.error(e); Deno.exit(1); });\n",
+        )
+    } else {
+        format!(
+            "// auto-generated wrapper for Deno\n{}import * as mod from \"{}\";\nasync function run() {{\n  if (typeof (mod as any).main === 'function') {{\n    await (mod as any).main();\n    return;\n  }}\n  // Fallback to global main if someone inlines the function into globalThis\n  const g: any = globalThis as any;\n  if (typeof g.main === 'function') {{\n    g.main();\n    return;\n  }}\n  console.error('No main() found to run');\n  Deno.exit(1);\n}}\nrun().catch((e) => {{ console.error(e); Deno.exit(1); }});\n",
+            js_preamble,
+            file_url
+        )
+    };
     fs::write(&wrapper_path, wrapper_code)
         .map_err(|e| format!("failed to write Deno wrapper: {}", e))?;
 
@@ -220,6 +259,7 @@ fn run_with_deno(ts_file: &Path, extra_args: &[String]) -> Result<String, String
     let output = Command::new(deno_cmd)
         .arg("run")
         .arg("--quiet")
+        .arg("--allow-run")
         .arg(&wrapper_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -234,4 +274,29 @@ fn run_with_deno(ts_file: &Path, extra_args: &[String]) -> Result<String, String
         ));
     }
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+fn is_examples_src_converter_main(ts_file: &Path) -> bool {
+    if ts_file.file_stem().and_then(OsStr::to_str) != Some("main") {
+        return false;
+    }
+    let parent = match ts_file.parent() {
+        Some(p) => p,
+        None => return false,
+    };
+    if parent.file_name().and_then(OsStr::to_str) != Some("converter") {
+        return false;
+    }
+    let grandparent = match parent.parent() {
+        Some(p) => p,
+        None => return false,
+    };
+    if grandparent.file_name().and_then(OsStr::to_str) != Some("src") {
+        return false;
+    }
+    let gg = match grandparent.parent() {
+        Some(p) => p,
+        None => return false,
+    };
+    gg.file_name().and_then(OsStr::to_str) == Some("Examples")
 }

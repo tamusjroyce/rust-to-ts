@@ -1,4 +1,4 @@
-import { NeuralNetwork, make_rng_from_args } from "./lib.ts";
+import { NeuralNetwork, make_rng_from_args, env, std } from "./lib.ts";
 
 // Converted from Rust: fn main(...)
 export function main(): void {

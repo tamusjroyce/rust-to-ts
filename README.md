@@ -1,5 +1,19 @@
 # Rust ⇄ TypeScript Converter & Tester
 
+## Quick Tips
+
+`cargo build --bins`
+
+`cargo run --bin rust-to-ts -- Examples/HelloWorld`
+`cargo run --bin rust-to-ts -- Examples/NeuralNetwork`
+`cargo run --bin rust-to-ts -- Examples/src`
+
+`cargo run --bin tester -- Examples/HelloWorld`
+`cargo run --bin tester -- Examples/NeuralNetwork --rng=chacha8 --seed=42`
+`cargo run --bin tester -- Examples/src`
+
+## Details:
+
 This workspace contains:
 
 - A Rust→TypeScript converter binary (`rust-to-ts`) that walks a folder (e.g. `Examples/*`), converts `.rs` files to `.ts` side-by-side, and keeps unsupported Rust embedded as comments.
