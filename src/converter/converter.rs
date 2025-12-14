@@ -1,11 +1,10 @@
-use syn::{File, Item, ItemFn, FnArg, ReturnType, Type, ItemStruct, Fields, Stmt, Expr, Block};
-use syn::{ImplItem};
-use syn::{Pat, PatTuple};
+use crate::ast::{File, Item, ItemFn, FnArg, ReturnType, Type, ItemStruct, Fields, Stmt, Expr, Block, ImplItem, Pat, PatTuple};
 use syn::punctuated::Punctuated;
 use syn::Token;
 use syn::parse::Parser;
 use std::fs;
 use std::path::{Path, PathBuf};
+use crate::ast::{IrType, rust_type_to_ir};
 
 pub fn convert_rust_to_ts(ast: &File, _source: &str, is_main_file: bool) -> String {
     let mut output = String::new();
@@ -384,40 +383,19 @@ fn convert_struct(struct_item: &ItemStruct) -> String {
 }
 
 fn convert_type(ty: &Type) -> String {
-    match ty {
-        Type::Reference(r) => {
-            // &T or &mut T -> just T in TS
-            convert_type(&r.elem)
-        }
-        Type::Path(type_path) => {
-            let segment = &type_path.path.segments.last().unwrap();
-            let ident = &segment.ident.to_string();
-            
-            match ident.as_str() {
-                "i32" | "i64" | "u32" | "u64" | "f32" | "f64" | "usize" | "isize" => "number".to_string(),
-                "String" | "str" => "string".to_string(),
-                "bool" => "boolean".to_string(),
-                "Self" => "any".to_string(),
-                "Vec" => {
-                    if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                        if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                            return format!("{}[]", convert_type(inner_ty));
-                        }
-                    }
-                    "any[]".to_string()
-                }
-                "Option" => {
-                    if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                        if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                            return format!("{} | undefined", convert_type(inner_ty));
-                        }
-                    }
-                    "any | undefined".to_string()
-                }
-                _ => ident.clone(),
-            }
-        }
-        _ => "any".to_string(),
+    let ir = rust_type_to_ir(ty);
+    convert_ir_type(&ir)
+}
+
+fn convert_ir_type(ir: &IrType) -> String {
+    match ir {
+        IrType::Number => "number".to_string(),
+        IrType::String => "string".to_string(),
+        IrType::Bool => "boolean".to_string(),
+        IrType::Any => "any".to_string(),
+        IrType::Vec(inner) => format!("{}[]", convert_ir_type(inner)),
+        IrType::Option(inner) => format!("{} | undefined", convert_ir_type(inner)),
+        IrType::Custom(name) => name.clone(),
     }
 }
 

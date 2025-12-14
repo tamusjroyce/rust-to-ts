@@ -1,6 +1,10 @@
+#![deny(unused_mut)]
+
 use std::env;
 use std::path::PathBuf;
 
+#[path = "../ast/mod.rs"]
+mod ast;
 mod converter;
 
 fn main() {

@@ -35,6 +35,13 @@ for %%E in (%EXAMPLES%) do (
 )
 
 echo.
+echo Version 2 AST conversion
+cargo build --bins
+cargo run --bin ast-v2 -- Examples/HelloWorld
+cargo run --bin tester -- "conversion\Examples\HelloWorld"
+echo .
+
+echo.
 echo All examples converted and tested successfully.
 exit /b 0
 

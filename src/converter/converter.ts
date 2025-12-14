@@ -97,7 +97,14 @@ export function convert_struct(struct_item: ItemStruct): string {
 
 // Converted from Rust: fn convert_type(...)
 export function convert_type(ty: Type): string {
-  return (undefined as any) /* Unsupported expression: match ty { Type :: Reference (r) => { convert_type (& r . elem) } Type :: Path (type_path) => { let segment = & type_path . path . segments . last () . unwrap () ; let ident = & segment . ident . to_string () ; match ident . as_str () { "i32" | "i64" | "u32" | "u64" | "f32" | "f64" | "usize" | "isize" => "number" . to_string () , "String" | "str" => "string" . to_string () , "bool" => "boolean" . to_string () , "Self" => "any" . to_string () , "Vec" => { if let syn :: PathArguments :: AngleBracketed (args) = & segment . arguments { if let Some (syn :: GenericArgument :: Type (inner_ty)) = args . args . first () { return format ! ("{}[]" , convert_type (inner_ty)) ; } } "any[]" . to_string () } "Option" => { if let syn :: PathArguments :: AngleBracketed (args) = & segment . arguments { if let Some (syn :: GenericArgument :: Type (inner_ty)) = args . args . first () { return format ! ("{} | undefined" , convert_type (inner_ty)) ; } } "any | undefined" . to_string () } _ => ident . clone () , } } _ => "any" . to_string () , } */;
+  // Rust variable declaration
+  const ir = rust_type_to_ir(ty);
+  return convert_ir_type((undefined as any) /* Unsupported expression: & ir */);
+}
+
+// Converted from Rust: fn convert_ir_type(...)
+export function convert_ir_type(ir: IrType): string {
+  return (undefined as any) /* Unsupported expression: match ir { IrType :: Number => "number" . to_string () , IrType :: String => "string" . to_string () , IrType :: Bool => "boolean" . to_string () , IrType :: Any => "any" . to_string () , IrType :: Vec (inner) => format ! ("{}[]" , convert_ir_type (inner)) , IrType :: Option (inner) => format ! ("{} | undefined" , convert_ir_type (inner)) , IrType :: Custom (name) => name . clone () , } */;
 }
 
 // Converted from Rust: fn ts_path_to_string(...)

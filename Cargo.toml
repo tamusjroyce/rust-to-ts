@@ -19,3 +19,7 @@ path = "src/converter/main.rs"
 [[bin]]
 name = "tester"
 path = "src/Tester/main.rs"
+
+[[bin]]
+name = "ast-v2"
+path = "src/ast_v2/main.rs"
