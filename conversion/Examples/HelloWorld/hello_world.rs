@@ -1,8 +1,3 @@
-struct Person {
-    name: String,
-    age: i32,
-}
-
 fn main() {
     println!("Hello, World!");
 
@@ -20,4 +15,9 @@ fn main() {
 
 fn add(x: i32, y: i32) -> i32 {
     return x + y;
+}
+
+struct Person {
+    name: String,
+    age: u32,
 }

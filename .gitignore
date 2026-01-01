@@ -37,7 +37,7 @@ out/
 *.swo
 
 # ----- Rust -----
-/target/
+target/
 **/*.rs.bk
 Cargo.lock
 # if this is a library, keep Cargo.lock; uncomment next line to commit lockfile for bins
@@ -160,3 +160,6 @@ docs/
 # Git
 .git-credentials
 .gitconfig.local
+conversion/Examples/NeuralNetwork/target/debug/deps/cfg_if-a8b587f74387df5b.d
+conversion/Examples/NeuralNetwork/target/debug/.fingerprint/cfg-if-a8b587f74387df5b/lib-cfg_if.json
+conversion/Examples/NeuralNetwork/target/debug/.fingerprint/getrandom-11e8ca20b79f0640/lib-getrandom
