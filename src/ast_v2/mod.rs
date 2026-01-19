@@ -1,6 +1,7 @@
 pub mod ast;
-pub mod rust_ast;
-pub mod ts_ast;
+pub mod bpmn;
+pub mod rust;
+pub mod typescript;
 pub mod convert_rust_to_ts;
 pub mod convert_ts_to_rust;
 pub mod tagging;
@@ -9,9 +10,9 @@ pub use ast::{Field, Function, FunctionKind, Module, Param, TypeDecl, TypeKind, 
 pub use convert_rust_to_ts::convert_rust_file_to_ts;
 pub use convert_ts_to_rust::convert_ts_file_to_rust;
 #[allow(unused_imports)]
-pub use rust_ast::{from_rust_module, module_to_rust};
+pub use rust::{from_rust_module, module_to_rust};
 #[allow(unused_imports)]
-pub use ts_ast::{from_ts_module, module_to_ts};
+pub use typescript::{from_ts_module, module_to_ts};
 
 #[allow(dead_code)]
 pub fn compare_and_print(rust_mod: &Module, ts_mod: &Module) {

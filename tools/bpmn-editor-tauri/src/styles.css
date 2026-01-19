@@ -1,0 +1,202 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b0f19;
+  --panel: #111827;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+  --border: #1f2937;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.title {
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+button, .fileLabel {
+  border: 1px solid var(--border);
+  background: #0f172a;
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+button:hover, .fileLabel:hover {
+  border-color: #334155;
+}
+
+.fileLabel input {
+  display: none;
+}
+
+.layout {
+  height: calc(100% - 110px);
+}
+
+.split {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 520px;
+}
+
+.pane {
+  height: 100%;
+  min-width: 0;
+}
+
+.pane.right {
+  border-left: 1px solid var(--border);
+  background: #0b1020;
+  display: flex;
+  flex-direction: column;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  background: #0f172a;
+  align-items: center;
+}
+
+.tabSpacer {
+  flex: 1;
+}
+
+.tabAction {
+  border: 1px solid var(--border);
+  background: #0b1226;
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.tabAction:hover {
+  border-color: #334155;
+}
+
+.tab {
+  border: 1px solid var(--border);
+  background: #0b1226;
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.tab.active {
+  border-color: #334155;
+  background: #0b1533;
+}
+
+.panel {
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  color: #e5e7eb;
+  flex: 1;
+}
+
+.panel.editor {
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: #e5e7eb;
+  white-space: pre;
+}
+
+.canvas {
+  height: 100%;
+  width: 100%;
+  background: #0b1020;
+}
+
+/* Make connections/arrows visible on dark background */
+.djs-connection .djs-visual path {
+  stroke: #93c5fd !important;
+}
+
+.djs-connection .djs-visual marker path {
+  fill: #93c5fd !important;
+  stroke: #93c5fd !important;
+}
+
+/* Improve shape contrast */
+.djs-shape .djs-visual rect,
+.djs-shape .djs-visual circle,
+.djs-shape .djs-visual polygon,
+.djs-shape .djs-visual path {
+  stroke: #e5e7eb;
+}
+
+.footer {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Status coloring */
+#status.status-ok {
+  color: #86efac; /* green */
+}
+
+#status.status-warn {
+  color: #93c5fd; /* blue */
+}
+
+#status.status-err {
+  color: #fca5a5; /* red */
+}
+
+/* bpmn-js label editing visibility */
+.djs-direct-editing-content {
+  color: #93c5fd !important; /* blue while typing */
+  background: rgba(11, 21, 51, 0.92) !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+  padding: 6px 8px !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.18) !important;
+}
+
+.djs-direct-editing-content ::selection {
+  background: rgba(147, 197, 253, 0.35);
+}

@@ -1,9 +1,12 @@
 use std::fs;
 use std::path::Path;
 
-use syn::{self, Item, ItemFn, ItemStruct, Fields, Type as SynType, FnArg, ReturnType};
+use quote::ToTokens;
+use syn::{self, FnArg, Fields, Item, ItemFn, ItemStruct, ReturnType, Type as SynType};
 
-use crate::ast_v2::ast::{Field, Function, FunctionKind, Module, Param, TypeDecl, TypeKind, TypeRef};
+use crate::ast_v2::ast::{
+    Field, Function, FunctionKind, Module, Param, TypeDecl, TypeKind, TypeRef,
+};
 
 fn map_rust_type(ty: &SynType) -> TypeRef {
     match ty {
@@ -11,7 +14,9 @@ fn map_rust_type(ty: &SynType) -> TypeRef {
             if let Some(seg) = p.path.segments.last() {
                 let ident = seg.ident.to_string();
                 match ident.as_str() {
-                    "i32" | "i64" | "u32" | "u64" | "usize" | "isize" | "f32" | "f64" => TypeRef::Number,
+                    "i32" | "i64" | "u32" | "u64" | "usize" | "isize" | "f32" | "f64" => {
+                        TypeRef::Number
+                    }
                     "String" | "str" => TypeRef::String,
                     "bool" => TypeRef::Bool,
                     other => TypeRef::Custom(other.to_string()),
@@ -62,27 +67,28 @@ fn convert_rust_fn(f: &ItemFn) -> Function {
         ReturnType::Type(_, ty) => Some(map_rust_type(ty)),
     };
 
+    let body: Vec<String> = f
+        .block
+        .stmts
+        .iter()
+        .map(|stmt| stmt.to_token_stream().to_string())
+        .collect();
+
     Function {
         name: f.sig.ident.to_string(),
         params,
         return_type,
         kind: FunctionKind::Normal,
-        body: Vec::new(),
+        body,
     }
 }
 
-pub fn from_rust_module(path: &Path) -> Result<Module, String> {
-    let src = fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read Rust file {}: {}", path.display(), e))?;
-    let file: syn::File = syn::parse_file(&src)
-        .map_err(|e| format!("Failed to parse Rust file {}: {}", path.display(), e))?;
+pub fn from_rust_src(src: &str, module_name: &str) -> Result<Module, String> {
+    let file: syn::File =
+        syn::parse_file(src).map_err(|e| format!("Failed to parse Rust source: {e}"))?;
 
     let mut module = Module {
-        name: path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("unknown")
-            .to_string(),
+        name: module_name.to_string(),
         types: Vec::new(),
         functions: Vec::new(),
     };
@@ -96,6 +102,18 @@ pub fn from_rust_module(path: &Path) -> Result<Module, String> {
     }
 
     Ok(module)
+}
+
+pub fn from_rust_module(path: &Path) -> Result<Module, String> {
+    let src = fs::read_to_string(path)
+        .map_err(|e| format!("Failed to read Rust file {}: {}", path.display(), e))?;
+
+    let module_name = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("unknown");
+
+    from_rust_src(&src, module_name)
 }
 
 fn type_ref_to_rust(ty: &TypeRef) -> String {
@@ -222,7 +240,9 @@ pub fn module_to_rust(module: &Module) -> String {
                 out.push_str("}\n");
             }
             FunctionKind::AstV2ConvertTsFileToRust => {
-                out.push_str("fn convert_ts_file_to_rust(path: &std::path::Path) -> Result<String, String> {\n");
+                out.push_str(
+                    "fn convert_ts_file_to_rust(path: &std::path::Path) -> Result<String, String> {\n",
+                );
                 out.push_str("    let module = from_ts_module(path)?;\n");
                 out.push_str("    Ok(module_to_rust(&module))\n");
                 out.push_str("}\n");
@@ -241,7 +261,9 @@ pub fn module_to_rust(module: &Module) -> String {
                 out.push_str("        IrType::Bool => \"boolean\".to_string(),\n");
                 out.push_str("        IrType::Any => \"any\".to_string(),\n");
                 out.push_str("        IrType::Vec(inner) => format!(\"{}[]\", convert_ir_type(inner)),\n");
-                out.push_str("        IrType::Option(inner) => format!(\"{} | undefined\", convert_ir_type(inner)),\n");
+                out.push_str(
+                    "        IrType::Option(inner) => format!(\"{} | undefined\", convert_ir_type(inner)),\n",
+                );
                 out.push_str("        IrType::Custom(name) => name.clone(),\n");
                 out.push_str("    }\n");
                 out.push_str("}\n");

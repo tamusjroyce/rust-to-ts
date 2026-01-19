@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1">
+  <process id="bpmn_hello_world" name="BpmnHelloWorld">
+    <startEvent id="StartEvent_1" name="Start"/>
+
+    <serviceTask id="ServiceTask_1" name="comment: Demonstrates standard BPMN -> Rust subset"/>
+    <serviceTask id="ServiceTask_2" name="let: x = 7"/>
+    <serviceTask id="ServiceTask_3" name="letmut: y = 1"/>
+    <serviceTask id="ServiceTask_4" name="set: y = 2"/>
+    <serviceTask id="ServiceTask_5" name="println: Hello, BPMN!"/>
+    <serviceTask id="ServiceTask_6" name="println_var: x"/>
+    <serviceTask id="ServiceTask_7" name="call: noop"/>
+
+    <endEvent id="EndEvent_1" name="End"/>
+
+    <sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="ServiceTask_1"/>
+    <sequenceFlow id="Flow_2" sourceRef="ServiceTask_1" targetRef="ServiceTask_2"/>
+    <sequenceFlow id="Flow_3" sourceRef="ServiceTask_2" targetRef="ServiceTask_3"/>
+    <sequenceFlow id="Flow_4" sourceRef="ServiceTask_3" targetRef="ServiceTask_4"/>
+    <sequenceFlow id="Flow_5" sourceRef="ServiceTask_4" targetRef="ServiceTask_5"/>
+    <sequenceFlow id="Flow_6" sourceRef="ServiceTask_5" targetRef="ServiceTask_6"/>
+    <sequenceFlow id="Flow_7" sourceRef="ServiceTask_6" targetRef="ServiceTask_7"/>
+    <sequenceFlow id="Flow_8" sourceRef="ServiceTask_7" targetRef="EndEvent_1"/>
+  </process>
+</definitions>

@@ -11,6 +11,7 @@ repository = "https://github.com/TamusJRoyce/typescript-rs"
 syn = { version = "2.0", features = ["full", "parsing", "extra-traits"] }
 quote = "1.0"
 proc-macro2 = "1.0"
+quick-xml = "0.31"
 
 [[bin]]
 name = "rust-to-ts"
@@ -23,3 +24,7 @@ path = "src/Tester/main.rs"
 [[bin]]
 name = "ast-v2"
 path = "src/ast_v2/main.rs"
+
+[[bin]]
+name = "bpmn-validator"
+path = "src/bpmn_validator/main.rs"

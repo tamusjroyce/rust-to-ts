@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BPMN Editor (Tauri)</title>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="title">BPMN Editor</div>
+      <div class="actions">
+        <button id="newBtn" type="button">New</button>
+
+        <button id="openNativeBtn" type="button">Open…</button>
+        <button id="saveNativeBtn" type="button">Save…</button>
+
+        <button id="convertRustBtn" type="button">Convert → Rust</button>
+        <button id="convertTsBtn" type="button">Convert → TS</button>
+        <button id="validateBtn" type="button">Validate</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <div class="split">
+        <div class="pane">
+          <div id="canvas" class="canvas"></div>
+        </div>
+        <div class="pane right">
+          <div class="tabs">
+            <button id="tabBpmn" type="button" class="tab active">BPMN XML</button>
+            <button id="tabRust" type="button" class="tab">Rust</button>
+            <button id="tabTs" type="button" class="tab">TS</button>
+            <button id="tabOut" type="button" class="tab">Validate</button>
+            <div class="tabSpacer"></div>
+            <button id="syncFromDiagramBtn" type="button" class="tabAction" title="Overwrite editor with XML from the diagram">Sync</button>
+            <button id="applyXmlBtn" type="button" class="tabAction" title="Import the BPMN XML editor contents into the diagram">Apply</button>
+          </div>
+          <textarea id="bpmnEditor" class="panel editor" spellcheck="false"></textarea>
+          <pre id="panel" class="panel"></pre>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div id="status">Ready</div>
+    </footer>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

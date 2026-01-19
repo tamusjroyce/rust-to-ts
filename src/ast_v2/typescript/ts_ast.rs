@@ -229,7 +229,9 @@ pub fn module_to_ts(module: &Module) -> String {
                 out.push_str("  const x_layers = 3;\n");
                 out.push_str("  const y_nodes = 4;\n");
                 out.push_str("  const z_weights = 2;\n");
-                out.push_str("  const rng_label = (((globalThis as any).__RUST_TO_TS_RNG || 'default') as string);\n");
+                out.push_str(
+                    "  const rng_label = (((globalThis as any).__RUST_TO_TS_RNG || 'default') as string);\n",
+                );
                 out.push_str("  let rng = ({ next_f32: (low: number, high: number) => {\n");
                 out.push_str("    function mulberry32(a: number) {\n");
                 out.push_str("      return function() {\n");
@@ -243,10 +245,14 @@ pub fn module_to_ts(module: &Module) -> String {
                 out.push_str("    const rand = mulberry32(seed);\n");
                 out.push_str("    return low + rand() * (high - low);\n");
                 out.push_str("  }});\n");
-                out.push_str("  const nn = (NeuralNetwork as any).random_uniform(x_layers, y_nodes, z_weights, -1.0, 1.0);\n");
+                out.push_str(
+                    "  const nn = (NeuralNetwork as any).random_uniform(x_layers, y_nodes, z_weights, -1.0, 1.0);\n",
+                );
                 out.push_str("  console.log(`RNG: ${rng_label}`);\n");
                 out.push_str("  const [x, y, z] = nn.dims() as any;\n");
-                out.push_str("  console.log(`NeuralNetwork<f64> dims: x(layers)=${x}, y(nodes)=${y}, z(weights)=${z} | total elements=${nn.len()}`);\n");
+                out.push_str(
+                    "  console.log(`NeuralNetwork<f64> dims: x(layers)=${x}, y(nodes)=${y}, z(weights)=${z} | total elements=${nn.len()}`);\n",
+                );
                 out.push_str("  for (let layer = 0; layer < Math.min(x, 2); layer++) {\n");
                 out.push_str("    for (let node = 0; node < Math.min(y, 2); node++) {\n");
                 out.push_str("      for (let weight = 0; weight < Math.min(z, 2); weight++) {\n");

@@ -41,6 +41,9 @@ pub enum FunctionKind {
     NeuralNetMain,
     AstV2ConvertRustFileToTs,
     AstV2ConvertTsFileToRust,
+    ConverterConvertType,
+    ConverterConvertIrType,
+    ConverterTsPathToString,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,6 +52,9 @@ pub struct Function {
     pub params: Vec<Param>,
     pub return_type: Option<TypeRef>,
     pub kind: FunctionKind,
+    // Best-effort body representation as Rust-ish statement strings.
+    // Empty means "unknown / not modeled".
+    pub body: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

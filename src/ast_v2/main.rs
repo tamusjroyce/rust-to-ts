@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 #[path = "mod.rs"]
 mod ast_v2;
 
-use ast_v2::{convert_rust_file_to_ts, convert_ts_file_to_rust};
+use ast_v2::{convert_rust_file_to_ts, convert_ts_file_to_rust, module_to_rust, module_to_ts};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Direction {
@@ -131,7 +131,7 @@ fn process_path(path: &Path, output_dir: &Path, dry_run: bool, direction: Direct
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_lowercase();
-    if ext != "rs" && ext != "ts" {
+    if ext != "rs" && ext != "ts" && ext != "bpmn" {
         return Ok(());
     }
 
@@ -146,13 +146,39 @@ fn process_path(path: &Path, output_dir: &Path, dry_run: bool, direction: Direct
         path.to_path_buf()
     };
 
+    // Always mirror the original source file into the output tree so that
+    // validation tools can operate purely within `output_dir`.
+    let src_mirror_path = output_dir.join(&rel);
+
+    if dry_run {
+        match ext.as_str() {
+            "bpmn" => {
+                let mut rs_dest = rel.clone();
+                rs_dest.set_extension("rs");
+                let mut ts_dest = rel.clone();
+                ts_dest.set_extension("ts");
+                println!(
+                    "--dry-run: would mirror {} into {}",
+                    path.display(),
+                    src_mirror_path.display()
+                );
+                println!(
+                    "--dry-run: would convert {} -> {} and {}",
+                    path.display(),
+                    output_dir.join(&rs_dest).display(),
+                    output_dir.join(&ts_dest).display()
+                );
+                return Ok(());
+            }
+            _ => {
+                // fall through to existing rs/ts dry-run below
+            }
+        }
+    }
+
     let mut dest_rel = rel.clone();
     dest_rel.set_extension(if ext == "rs" { "ts" } else { "rs" });
     let dest_path = output_dir.join(&dest_rel);
-
-    // Also mirror the original source file into the output tree so tools
-    // like `tester` can operate purely within `output_dir`.
-    let src_mirror_path = output_dir.join(&rel);
 
     if dry_run {
         match (ext.as_str(), direction) {
@@ -187,6 +213,36 @@ fn process_path(path: &Path, output_dir: &Path, dry_run: bool, direction: Direct
     }
     fs::copy(path, &src_mirror_path)
         .map_err(|e| format!("Failed to copy {} -> {}: {}", path.display(), src_mirror_path.display(), e))?;
+
+    if ext == "bpmn" {
+        let xml = fs::read_to_string(path)
+            .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+        let module = ast_v2::bpmn::convert_bpmn_xml_to_module(&xml)?;
+
+        let mut rs_dest_rel = rel.clone();
+        rs_dest_rel.set_extension("rs");
+        let rs_dest_path = output_dir.join(&rs_dest_rel);
+        if let Some(parent) = rs_dest_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create dir {}: {}", parent.display(), e))?;
+        }
+        fs::write(&rs_dest_path, module_to_rust(&module))
+            .map_err(|e| format!("Failed to write {}: {}", rs_dest_path.display(), e))?;
+        println!("Wrote {}", rs_dest_path.display());
+
+        let mut ts_dest_rel = rel.clone();
+        ts_dest_rel.set_extension("ts");
+        let ts_dest_path = output_dir.join(&ts_dest_rel);
+        if let Some(parent) = ts_dest_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create dir {}: {}", parent.display(), e))?;
+        }
+        fs::write(&ts_dest_path, module_to_ts(&module))
+            .map_err(|e| format!("Failed to write {}: {}", ts_dest_path.display(), e))?;
+        println!("Wrote {}", ts_dest_path.display());
+
+        return Ok(());
+    }
 
     match (ext.as_str(), direction) {
         ("rs", Direction::RsToTs) | ("rs", Direction::Both) => {

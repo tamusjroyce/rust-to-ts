@@ -1,7 +1,0 @@
-// Unsupported Rust item: # [doc = " Very small, shared intermediate representation for types."] # [derive (Clone , Debug)] pub enum IrType { Number , String , Bool , Any , Vec (Box < IrType >) , Option (Box < IrType >) , Custom (String) , }
-
-// Converted from Rust: fn rust_type_to_ir(...)
-export function rust_type_to_ir(ty: Type): IrType {
-  return (undefined as any) /* Unsupported expression: match ty { Type :: Reference (r) => { rust_type_to_ir (& r . elem) } Type :: Path (type_path) => { let segment = match type_path . path . segments . last () { Some (seg) => seg , None => return IrType :: Any , } ; let ident = segment . ident . to_string () ; match ident . as_str () { "i32" | "i64" | "u32" | "u64" | "f32" | "f64" | "usize" | "isize" => IrType :: Number , "String" | "str" => IrType :: String , "bool" => IrType :: Bool , "Self" => IrType :: Any , "Vec" => { if let syn :: PathArguments :: AngleBracketed (args) = & segment . arguments { if let Some (syn :: GenericArgument :: Type (inner_ty)) = args . args . first () { return IrType :: Vec (Box :: new (rust_type_to_ir (inner_ty))) ; } } IrType :: Vec (Box :: new (IrType :: Any)) } "Option" => { if let syn :: PathArguments :: AngleBracketed (args) = & segment . arguments { if let Some (syn :: GenericArgument :: Type (inner_ty)) = args . args . first () { return IrType :: Option (Box :: new (rust_type_to_ir (inner_ty))) ; } } IrType :: Option (Box :: new (IrType :: Any)) } _ => IrType :: Custom (ident) , } } _ => IrType :: Any , } */;
-}
-

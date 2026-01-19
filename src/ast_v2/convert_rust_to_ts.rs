@@ -1,8 +1,7 @@
 use std::path::Path;
 
 use crate::ast_v2::ast::Module;
-use crate::ast_v2::rust_ast::from_rust_module;
-use crate::ast_v2::ts_ast::module_to_ts;
+use crate::ast_v2::{from_rust_module, module_to_ts};
 
 use crate::ast_v2::tagging::tag_special_functions_for_path;
 

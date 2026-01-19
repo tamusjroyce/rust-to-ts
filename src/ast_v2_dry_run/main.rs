@@ -32,6 +32,7 @@ fn main() {
         let res = match ext.as_str() {
             "rs" => handle_rust_file(path),
             "ts" => handle_ts_file(path),
+            "bpmn" | "xml" => handle_bpmn_file(path),
             _ => {
                 eprintln!("[ast_v2_dry_run] Skipping {} (unsupported extension)", path.display());
                 Ok(())
@@ -76,5 +77,19 @@ fn handle_ts_file(path: &Path) -> Result<(), String> {
     // Show the generated Rust for quick inspection.
     let rs_code = module_to_rust(&module);
     println!("--- Generated Rust for {} ---\n{}", path.display(), rs_code);
+    Ok(())
+}
+
+fn handle_bpmn_file(path: &Path) -> Result<(), String> {
+    let xml = std::fs::read_to_string(path)
+        .map_err(|e| format!("Failed to read BPMN file {}: {}", path.display(), e))?;
+
+    let rust_code = ast_v2::bpmn::convert_bpmn_xml_to_rust_code(&xml)?;
+    println!("[ast_v2_dry_run] BPMN {} -> Generated Rust:\n{}", path.display(), rust_code);
+
+    let bpmn_xml = ast_v2::bpmn::convert_rust_code_to_bpmn_xml(&rust_code)?;
+    // Validate the emitted XML parses.
+    ast_v2::bpmn::validate_bpmn_xml(&bpmn_xml)?;
+    println!("[ast_v2_dry_run] Rust -> BPMN (roundtrip) for {}:\n{}", path.display(), bpmn_xml);
     Ok(())
 }

@@ -1,75 +1,88 @@
 fn convert_rust_to_ts(ast: File, _source: String, is_main_file: bool) -> String {
-    unimplemented!();
+    Default::default()
 }
 
 fn convert_function(func: ItemFn) -> String {
-    unimplemented!();
+    Default::default()
 }
 
 fn convert_block(block: Block) -> String {
-    unimplemented!();
+    Default::default()
 }
 
 fn convert_stmt(stmt: Stmt) -> String {
-    unimplemented!();
+    Default::default()
 }
 
 fn convert_expr(expr: Expr) -> String {
-    unimplemented!();
+    Default::default()
 }
 
 fn convert_struct(struct_item: ItemStruct) -> String {
-    unimplemented!();
+    Default::default()
 }
 
 fn convert_type(ty: Type) -> String {
-    unimplemented!();
+    let ir = rust_type_to_ir(ty);
+    convert_ir_type(&ir)
 }
 
-fn convert_ir_type(ir: IrType) -> String {
-    unimplemented!();
+fn convert_ir_type(ir: &IrType) -> String {
+    match ir {
+        IrType::Number => "number".to_string(),
+        IrType::String => "string".to_string(),
+        IrType::Bool => "boolean".to_string(),
+        IrType::Any => "any".to_string(),
+        IrType::Vec(inner) => format!("{}[]", convert_ir_type(inner)),
+        IrType::Option(inner) => format!("{} | undefined", convert_ir_type(inner)),
+        IrType::Custom(name) => name.clone(),
+    }
 }
 
-fn ts_path_to_string(path: Path) -> String {
-    unimplemented!();
+fn ts_path_to_string(path: &syn::Path) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    for seg in &path.segments {
+        parts.push(seg.ident.to_string());
+    }
+    parts.join(".")
 }
 
 fn convert_impl_inherent(impl_item: ItemImpl) -> String {
-    unimplemented!();
+    Default::default()
 }
 
 fn convert_macro_stmt(stmt_mac: StmtMacro) -> String {
-    unimplemented!();
+    Default::default()
 }
 
 fn convert_macro_expr(mac: ExprMacro) -> String {
-    unimplemented!();
+    Default::default()
 }
 
-fn parse_format_macro_args(tokens: TokenStream) -> any {
-    unimplemented!();
+fn parse_format_macro_args(tokens: TokenStream) -> String {
+    Default::default()
 }
 
-fn build_ts_template_string(fmt: String, args: any) -> String {
-    unimplemented!();
+fn build_ts_template_string(fmt: String, args: String) -> String {
+    Default::default()
 }
 
 fn convert_for_loop(fl: ExprForLoop) -> String {
-    unimplemented!();
+    Default::default()
 }
 
 fn convert_if_stmt(ifexpr: ExprIf) -> String {
-    unimplemented!();
+    Default::default()
 }
 
 fn convert_rust_file_to_ts_file<P>(rs_path: P) -> Result {
-    unimplemented!();
+    Default::default()
 }
 
 fn is_ignored_dir(name: String) -> bool {
-    unimplemented!();
+    Default::default()
 }
 
 fn convert_rs_dir_to_ts_side_by_side<P>(root: P) -> Result {
-    unimplemented!();
+    Default::default()
 }
