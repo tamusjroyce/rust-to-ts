@@ -142,7 +142,9 @@ __pycache__/
 venv/
 
 # ----- Docs -----
-docs/
+# Keep documentation sources and images in-repo.
+# If you generate a static site later, ignore only its build output.
+**/_site/
 
 # ----- Logs / dumps -----
 *.log

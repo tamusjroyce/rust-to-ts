@@ -1,5 +1,37 @@
 # Rust ⇄ TypeScript Converter & Tester
 
+## BPMN Editor (Tauri)
+
+This repo also includes a small desktop BPMN editor (Tauri + bpmn-js) that can:
+
+- Edit BPMN visually (or paste/edit BPMN XML)
+- Convert a UML-like/flowchart-like BPMN process into runnable Rust (a small supported subset)
+- Convert Rust → TypeScript and run parity-style validations
+- Hot-reload while you iterate: frontend changes (TS/JS/CSS) update immediately, and Rust backend changes rebuild/relaunch via Tauri dev
+
+![BPMN Editor screenshot](docs/bpmn-editor.png)
+
+Run it from the repo root:
+
+```powershell
+./run-bpmn-editor.cmd
+```
+
+Example BPMN:
+
+- `Examples/BpmnHelloWorld/hello_world.bpmn`
+
+That file is valid “standard BPMN” XML. The supported subset is encoded in ordinary BPMN elements (e.g. a linear flow of `serviceTask`s), using the task `name` as a tiny directive language:
+
+- `println: Hello, BPMN!`
+- `let: x = 7`
+- `letmut: y = 1`
+- `set: y = 2`
+- `println_var: x`
+- `call: noop`
+
+The editor can also render BPMN files that omit DI (diagram layout) by auto-generating a simple layout so nodes and arrows appear.
+
 ## Quick Tips
 
 `cargo build --bins`
@@ -58,6 +90,11 @@ Note: This project and the docs were largely “vibed” using Copilot Pro (GPT-
 - Rust toolchain (Cargo)
 - Deno (to run the generated TypeScript)
 
+Optional (for the BPMN editor):
+
+- Node.js
+- Tauri prerequisites for your OS (Windows: WebView2 + MSVC build tools)
+
 ## Build
 
 ```powershell
@@ -71,6 +108,14 @@ cargo run --bin rust-to-ts -- Examples/NeuralNetwork
 ```
 
 This will write `src/*.ts` next to each `src/*.rs` inside `Examples/NeuralNetwork`.
+
+## Convert BPMN → Rust / TypeScript (AST v2)
+
+The AST-v2 pipeline can also take `*.bpmn` inputs and emit conversions under `conversion/`:
+
+```powershell
+cargo run --bin ast-v2 -- Examples/BpmnHelloWorld --output-dir conversion
+```
 
 ## Run tester (exact parity example)
 
