@@ -1,25 +1,85 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1">
-  <process id="bpmn_hello_world" name="BpmnHelloWorld">
-    <startEvent id="StartEvent_1" name="Start"/>
-
-    <serviceTask id="ServiceTask_1" name="comment: Demonstrates standard BPMN -> Rust subset"/>
-    <serviceTask id="ServiceTask_2" name="let: x = 7"/>
-    <serviceTask id="ServiceTask_3" name="letmut: y = 1"/>
-    <serviceTask id="ServiceTask_4" name="set: y = 2"/>
-    <serviceTask id="ServiceTask_5" name="println: Hello, BPMN!"/>
-    <serviceTask id="ServiceTask_6" name="println_var: x"/>
-    <serviceTask id="ServiceTask_7" name="call: noop"/>
-
-    <endEvent id="EndEvent_1" name="End"/>
-
-    <sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="ServiceTask_1"/>
-    <sequenceFlow id="Flow_2" sourceRef="ServiceTask_1" targetRef="ServiceTask_2"/>
-    <sequenceFlow id="Flow_3" sourceRef="ServiceTask_2" targetRef="ServiceTask_3"/>
-    <sequenceFlow id="Flow_4" sourceRef="ServiceTask_3" targetRef="ServiceTask_4"/>
-    <sequenceFlow id="Flow_5" sourceRef="ServiceTask_4" targetRef="ServiceTask_5"/>
-    <sequenceFlow id="Flow_6" sourceRef="ServiceTask_5" targetRef="ServiceTask_6"/>
-    <sequenceFlow id="Flow_7" sourceRef="ServiceTask_6" targetRef="ServiceTask_7"/>
-    <sequenceFlow id="Flow_8" sourceRef="ServiceTask_7" targetRef="EndEvent_1"/>
-  </process>
-</definitions>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1">
+  <bpmn:process id="bpmn_hello_world" name="BpmnHelloWorld">
+    <bpmn:startEvent id="StartEvent_1" name="Start" />
+    <bpmn:serviceTask id="ServiceTask_1" name="comment: Demonstrates standard BPMN -&#62; Rust subset" />
+    <bpmn:serviceTask id="ServiceTask_2" name="let: x = 7" />
+    <bpmn:serviceTask id="ServiceTask_3" name="letmut: y = 1" />
+    <bpmn:serviceTask id="ServiceTask_4" name="set: y = 2" />
+    <bpmn:serviceTask id="ServiceTask_5" name="println: Hello, BPMN!" />
+    <bpmn:serviceTask id="ServiceTask_6" name="println_var: x" />
+    <bpmn:serviceTask id="ServiceTask_7" name="call: noop" />
+    <bpmn:endEvent id="EndEvent_1" name="End" />
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="ServiceTask_1" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="ServiceTask_1" targetRef="ServiceTask_2" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="ServiceTask_2" targetRef="ServiceTask_3" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="ServiceTask_3" targetRef="ServiceTask_4" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="ServiceTask_4" targetRef="ServiceTask_5" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="ServiceTask_5" targetRef="ServiceTask_6" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="ServiceTask_6" targetRef="ServiceTask_7" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="ServiceTask_7" targetRef="EndEvent_1" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" id="BPMNDiagram_bpmn_hello_world">
+    <bpmndi:BPMNPlane id="BPMNPlane_bpmn_hello_world" bpmnElement="bpmn_hello_world">
+      <bpmndi:BPMNShape id="BPMNShape_StartEvent_1" bpmnElement="StartEvent_1">
+        <dc:Bounds xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" x="60" y="60" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_ServiceTask_1" bpmnElement="ServiceTask_1">
+        <dc:Bounds xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" x="60" y="180" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_ServiceTask_2" bpmnElement="ServiceTask_2">
+        <dc:Bounds xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" x="60" y="300" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_ServiceTask_3" bpmnElement="ServiceTask_3">
+        <dc:Bounds xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" x="60" y="420" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_ServiceTask_4" bpmnElement="ServiceTask_4">
+        <dc:Bounds xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" x="60" y="540" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_ServiceTask_5" bpmnElement="ServiceTask_5">
+        <dc:Bounds xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" x="60" y="660" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_ServiceTask_6" bpmnElement="ServiceTask_6">
+        <dc:Bounds xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" x="60" y="780" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_ServiceTask_7" bpmnElement="ServiceTask_7">
+        <dc:Bounds xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" x="60" y="900" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_EndEvent_1" bpmnElement="EndEvent_1">
+        <dc:Bounds xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" x="60" y="1020" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_1" bpmnElement="Flow_1">
+        <di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="78" y="96" />
+        <di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="130" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_2" bpmnElement="Flow_2">
+        <di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="130" y="260" />
+        <di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="130" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_3" bpmnElement="Flow_3">
+        <di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="130" y="380" />
+        <di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="130" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_4" bpmnElement="Flow_4">
+        <di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="130" y="500" />
+        <di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="130" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_5" bpmnElement="Flow_5">
+        <di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="130" y="620" />
+        <di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="130" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_6" bpmnElement="Flow_6">
+        <di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="130" y="740" />
+        <di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="130" y="780" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_7" bpmnElement="Flow_7">
+        <di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="130" y="860" />
+        <di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="130" y="900" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_8" bpmnElement="Flow_8">
+        <di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="130" y="980" />
+        <di:waypoint xmlns:di="http://www.omg.org/spec/DD/20100524/DI" x="78" y="1020" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

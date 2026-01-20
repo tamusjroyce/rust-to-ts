@@ -6,10 +6,9 @@ use std::process::{Command, Stdio};
 
 use serde::Serialize;
 
-use rust_to_ts::ast_v2::bpmn::{
-    convert_bpmn_xml_to_module, convert_bpmn_xml_to_rust_code, convert_rust_code_to_bpmn_xml,
-};
-use rust_to_ts::ast_v2::{module_to_ts};
+use rust_to_ts::ast_v2::bpmn::{convert_bpmn_xml_to_rust_code, convert_rust_code_to_bpmn_xml};
+use rust_to_ts::converter::convert_rust_src_to_ts;
+use rust_to_ts::ast_v2::convert_ts_file_to_rust;
 
 #[derive(Debug, Serialize)]
 struct ValidateResult {
@@ -88,8 +87,30 @@ fn bpmn_to_rust(xml: String) -> Result<String, String> {
 
 #[tauri::command]
 fn bpmn_to_ts(xml: String) -> Result<String, String> {
-    let module = convert_bpmn_xml_to_module(&xml)?;
-    Ok(module_to_ts(&module))
+    // Intentionally run BPMN -> Rust -> TS so we preserve the exact supported
+    // BPMN subset semantics implemented in the Rust emitter.
+    let rust = convert_bpmn_xml_to_rust_code(&xml)?;
+    convert_rust_src_to_ts(&rust, true)
+}
+
+#[tauri::command]
+fn rust_to_ts(rust: String) -> Result<String, String> {
+    convert_rust_src_to_ts(&rust, true)
+}
+
+#[tauri::command]
+fn rust_to_bpmn(rust: String) -> Result<String, String> {
+    convert_rust_code_to_bpmn_xml(&rust)
+}
+
+#[tauri::command]
+fn ts_to_bpmn(ts: String) -> Result<String, String> {
+    let tmp = tmp_dir()?;
+    let ts_path = tmp.join("sync_from_ts.ts");
+    fs::write(&ts_path, &ts)
+        .map_err(|e| format!("Failed to write {}: {e}", ts_path.display()))?;
+    let rust = convert_ts_file_to_rust(&ts_path)?;
+    convert_rust_code_to_bpmn_xml(&rust)
 }
 
 #[tauri::command]
@@ -137,6 +158,9 @@ fn main() {
             write_text_file,
             bpmn_to_rust,
             bpmn_to_ts,
+            rust_to_ts,
+            rust_to_bpmn,
+            ts_to_bpmn,
             validate_roundtrip,
         ])
         .run(tauri::generate_context!())

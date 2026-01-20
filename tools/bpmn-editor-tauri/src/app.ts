@@ -8,8 +8,11 @@ const status = document.getElementById("status") as HTMLDivElement;
 const newBtn = document.getElementById("newBtn") as HTMLButtonElement;
 const openNativeBtn = document.getElementById("openNativeBtn") as HTMLButtonElement;
 const saveNativeBtn = document.getElementById("saveNativeBtn") as HTMLButtonElement;
+const saveAsNativeBtn = document.getElementById("saveAsNativeBtn") as HTMLButtonElement;
 const convertRustBtn = document.getElementById("convertRustBtn") as HTMLButtonElement;
 const convertTsBtn = document.getElementById("convertTsBtn") as HTMLButtonElement;
+const syncFromRustBtn = document.getElementById("syncFromRustBtn") as HTMLButtonElement;
+const syncFromTsBtn = document.getElementById("syncFromTsBtn") as HTMLButtonElement;
 const validateBtn = document.getElementById("validateBtn") as HTMLButtonElement;
 
 const tabBpmn = document.getElementById("tabBpmn") as HTMLButtonElement;
@@ -24,6 +27,12 @@ const syncFromDiagramBtn = document.getElementById(
 
 const bpmnEditor = document.getElementById("bpmnEditor") as HTMLTextAreaElement;
 const panel = document.getElementById("panel") as HTMLPreElement;
+
+const modalOverlay = document.getElementById("modalOverlay") as HTMLDivElement;
+const modalTitle = document.getElementById("modalTitle") as HTMLDivElement;
+const modalBody = document.getElementById("modalBody") as HTMLDivElement;
+const modalActions = document.getElementById("modalActions") as HTMLDivElement;
+const modalCloseBtn = document.getElementById("modalCloseBtn") as HTMLButtonElement;
 
 type StatusTone = "neutral" | "ok" | "warn" | "err";
 
@@ -43,6 +52,22 @@ function toErrorString(e: unknown): string {
   }
 }
 
+function showStartupError(title: string, details: string) {
+  try {
+    const pre = document.createElement("pre");
+    pre.textContent = details;
+    void showChoiceModal({
+      title,
+      body: pre,
+      choices: [{ id: "close", label: "Close", variant: "primary" }],
+      dismissId: "close"
+    });
+  } catch {
+    // If modal wiring fails, at least show status.
+    setStatus(`${title}: ${details}`, "err");
+  }
+}
+
 type ValidateResult = {
   ok: boolean;
   stdout_direct: string;
@@ -57,9 +82,125 @@ let currentXml: string = "";
 let editorXml: string = "";
 let editorDirty = false;
 let currentFilePath: string | null = null;
+let lastDir: string | null = null;
+let lastSavedXml: string = "";
+let lastKnownDiskHash: string | null = null;
 let lastRust: string = "";
 let lastTs: string = "";
 let lastValidate: ValidateResult | null = null;
+
+// A baseline representation of the default template as bpmn-js exports it.
+let defaultTemplateCanonical: string | null = null;
+
+const LS_LAST_DIR = "bpmnEditor.lastDir";
+
+function normalizeXmlForCompare(xml: string): string {
+  return xml.replace(/\s+/g, " ").trim();
+}
+
+function hashStringFNV1a(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = (hash * 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
+
+function pathDirname(p: string): string {
+  const normalized = p.replace(/[\\/]+/g, "\\");
+  const idx = normalized.lastIndexOf("\\");
+  if (idx <= 0) return normalized;
+  return normalized.slice(0, idx);
+}
+
+function loadLastDirFromStorage() {
+  try {
+    const v = localStorage.getItem(LS_LAST_DIR);
+    if (v && v.trim()) lastDir = v;
+  } catch {
+    // ignore
+  }
+}
+
+function saveLastDirToStorage(dir: string) {
+  lastDir = dir;
+  try {
+    localStorage.setItem(LS_LAST_DIR, dir);
+  } catch {
+    // ignore
+  }
+}
+
+function setCurrentFilePath(p: string | null) {
+  currentFilePath = p;
+  if (p) saveLastDirToStorage(pathDirname(p));
+  updateButtonStates();
+}
+
+function updateButtonStates() {
+  saveNativeBtn.disabled = !currentFilePath;
+}
+
+type ModalChoice = {
+  id: string;
+  label: string;
+  variant?: "primary" | "danger" | "default";
+};
+
+function showChoiceModal(opts: {
+  title: string;
+  body: string | HTMLElement;
+  choices: ModalChoice[];
+  dismissId?: string;
+}): Promise<string> {
+  modalTitle.textContent = opts.title;
+  modalBody.innerHTML = "";
+  if (typeof opts.body === "string") {
+    const p = document.createElement("div");
+    p.textContent = opts.body;
+    modalBody.appendChild(p);
+  } else {
+    modalBody.appendChild(opts.body);
+  }
+  modalActions.innerHTML = "";
+  modalOverlay.classList.remove("hidden");
+
+  return new Promise(resolve => {
+    const dismissId = opts.dismissId ?? "cancel";
+
+    const cleanup = (id: string) => {
+      modalOverlay.classList.add("hidden");
+      modalActions.innerHTML = "";
+      modalCloseBtn.onclick = null;
+      modalOverlay.removeEventListener("click", onOverlayClick);
+      window.removeEventListener("keydown", onKeyDown);
+      resolve(id);
+    };
+
+    const onOverlayClick = (e: MouseEvent) => {
+      if (e.target === modalOverlay) cleanup(dismissId);
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") cleanup(dismissId);
+    };
+
+    modalOverlay.addEventListener("click", onOverlayClick);
+    window.addEventListener("keydown", onKeyDown);
+    modalCloseBtn.onclick = () => cleanup(dismissId);
+
+    for (const c of opts.choices) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = c.label;
+      if (c.variant === "primary") btn.classList.add("btnPrimary");
+      if (c.variant === "danger") btn.classList.add("btnDanger");
+      btn.addEventListener("click", () => cleanup(c.id));
+      modalActions.appendChild(btn);
+    }
+  });
+}
 
 function setActiveTab(next: typeof activeTab) {
   activeTab = next;
@@ -394,21 +535,185 @@ async function exportXml(): Promise<string> {
   return xml;
 }
 
+async function refreshDiskSignature(path: string): Promise<string | null> {
+  try {
+    const disk = await invoke<string>("read_text_file", { path });
+    const h = hashStringFNV1a(disk);
+    lastKnownDiskHash = h;
+    return h;
+  } catch {
+    // File may not exist yet.
+    lastKnownDiskHash = null;
+    return null;
+  }
+}
+
+async function saveToPath(path: string, xml: string, opts?: { checkExternal?: boolean }) {
+  const checkExternal = opts?.checkExternal ?? true;
+  if (checkExternal) {
+    let diskHash: string | null = null;
+    try {
+      const disk = await invoke<string>("read_text_file", { path });
+      diskHash = hashStringFNV1a(disk);
+    } catch {
+      diskHash = null;
+    }
+
+    if (diskHash && lastKnownDiskHash && diskHash !== lastKnownDiskHash) {
+      const choice = await showChoiceModal({
+        title: "File changed on disk",
+        body: "This file was modified on disk since you opened/saved it. Overwrite it?",
+        choices: [
+          { id: "overwrite", label: "Overwrite", variant: "danger" },
+          { id: "cancel", label: "Cancel", variant: "default" }
+        ],
+        dismissId: "cancel"
+      });
+      if (choice !== "overwrite") {
+        throw new Error("Save canceled");
+      }
+    }
+  }
+
+  await invoke<void>("write_text_file", { path, contents: xml });
+  setCurrentFilePath(path);
+  lastSavedXml = xml;
+  lastKnownDiskHash = hashStringFNV1a(xml);
+  editorDirty = false;
+  editorXml = xml;
+  renderPanel();
+}
+
+async function saveAsFlow(xml: string): Promise<string | null> {
+  const defaultName = currentFilePath ? currentFilePath : (lastDir ? `${lastDir}\\diagram.bpmn` : "diagram.bpmn");
+  const target = await save({
+    filters: [{ name: "BPMN", extensions: ["bpmn", "xml"] }],
+    defaultPath: defaultName
+  });
+  if (!target) return null;
+
+  let exists = false;
+  try {
+    await invoke<string>("read_text_file", { path: target });
+    exists = true;
+  } catch {
+    exists = false;
+  }
+
+  if (exists) {
+    const choice = await showChoiceModal({
+      title: "Overwrite file?",
+      body: "That file already exists. Overwrite it?",
+      choices: [
+        { id: "overwrite", label: "Overwrite", variant: "danger" },
+        { id: "cancel", label: "Cancel", variant: "default" }
+      ],
+      dismissId: "cancel"
+    });
+    if (choice !== "overwrite") return null;
+  }
+
+  await saveToPath(target, xml, { checkExternal: false });
+  return target;
+}
+
+async function ensureSavedForAction(): Promise<{ path: string | null; xml: string } | null> {
+  const xml = await exportXml();
+  currentXml = xml;
+
+  if (!currentFilePath) {
+    const savedPath = await saveAsFlow(xml);
+    if (!savedPath) return null;
+    return { path: savedPath, xml };
+  }
+
+  // Refresh disk signature on demand if we haven't yet.
+  if (!lastKnownDiskHash) {
+    await refreshDiskSignature(currentFilePath);
+  }
+
+  // Always save before action (requested behavior), but follow Save rules.
+  await saveToPath(currentFilePath, xml, { checkExternal: true });
+  return { path: currentFilePath, xml };
+}
+
+async function isDefaultTemplate(): Promise<boolean> {
+  if (!defaultTemplateCanonical) return false;
+  const xml = await exportXml();
+  return normalizeXmlForCompare(xml) === normalizeXmlForCompare(defaultTemplateCanonical);
+}
+
+async function maybePromptToSaveBeforeDestructive(opts: {
+  actionName: string;
+  saveLabel: string;
+}): Promise<"save" | "discard" | "cancel"> {
+  const defaultOk = await isDefaultTemplate();
+  if (defaultOk) return "discard"; // safe: nothing important
+
+  const choice = await showChoiceModal({
+    title: `${opts.actionName}: Unsaved or non-default work`,
+    body: "Your current diagram is not the default template. What do you want to do?",
+    choices: [
+      { id: "save", label: opts.saveLabel, variant: "primary" },
+      { id: "discard", label: "Discard", variant: "danger" },
+      { id: "cancel", label: "Cancel", variant: "default" }
+    ],
+    dismissId: "cancel"
+  });
+  if (choice === "save") return "save";
+  if (choice === "discard") return "discard";
+  return "cancel";
+}
+
 newBtn.addEventListener("click", () => {
-  currentFilePath = null;
-  loadXml(DEFAULT_XML);
+  (async () => {
+    try {
+      const decision = await maybePromptToSaveBeforeDestructive({
+        actionName: "New",
+        saveLabel: "Save & New"
+      });
+      if (decision === "cancel") return;
+      if (decision === "save") {
+        const saved = await ensureSavedForAction();
+        if (!saved) return;
+      }
+      setCurrentFilePath(null);
+      lastKnownDiskHash = null;
+      lastSavedXml = "";
+      await loadXml(DEFAULT_XML);
+      setActiveTab("bpmn");
+      setStatus("New diagram", "neutral");
+    } catch (e) {
+      console.error(e);
+      setStatus(`New failed: ${toErrorString(e)}`, "err");
+    }
+  })();
 });
 
 openNativeBtn.addEventListener("click", async () => {
   try {
+    setStatus("Opening…", "neutral");
+    const decision = await maybePromptToSaveBeforeDestructive({
+      actionName: "Open",
+      saveLabel: "Save & Open"
+    });
+    if (decision === "cancel") return;
+    if (decision === "save") {
+      const saved = await ensureSavedForAction();
+      if (!saved) return;
+    }
+
     const selected = await open({
       multiple: false,
-      filters: [{ name: "BPMN", extensions: ["bpmn", "xml"] }]
+      filters: [{ name: "BPMN", extensions: ["bpmn", "xml"] }],
+      defaultPath: lastDir ?? undefined
     });
     if (!selected || Array.isArray(selected)) return;
 
     const xml = await invoke<string>("read_text_file", { path: selected });
-    currentFilePath = selected;
+    setCurrentFilePath(selected);
+    lastSavedXml = xml;
+    lastKnownDiskHash = hashStringFNV1a(xml);
     await loadXml(xml);
     setActiveTab("bpmn");
     setStatus(`Loaded ${selected}`, "neutral");
@@ -420,39 +725,50 @@ openNativeBtn.addEventListener("click", async () => {
 
 saveNativeBtn.addEventListener("click", async () => {
   try {
+    setStatus("Saving…", "neutral");
     const xml = await exportXml();
     currentXml = xml;
     editorXml = xml;
     editorDirty = false;
     renderPanel();
 
-    // If a file is already open, save back to it (works even if dialogs are flaky).
-    if (currentFilePath) {
-      await invoke<void>("write_text_file", { path: currentFilePath, contents: xml });
-      setStatus(`Saved ${currentFilePath}`, "neutral");
+    if (!currentFilePath) {
+      // Save is disabled until a file path exists, but keep this safe.
+      setStatus("Save is disabled until a file is opened (use Save As)", "warn");
       return;
     }
 
-    const target = await save({
-      filters: [{ name: "BPMN", extensions: ["bpmn"] }],
-      defaultPath: "diagram.bpmn"
-    });
-    if (!target) return;
-
-    await invoke<void>("write_text_file", { path: target, contents: xml });
-    currentFilePath = target;
-    setStatus(`Saved ${target}`, "neutral");
+    if (!lastKnownDiskHash) {
+      await refreshDiskSignature(currentFilePath);
+    }
+    await saveToPath(currentFilePath, xml, { checkExternal: true });
+    setStatus(`Saved ${currentFilePath}`, "neutral");
   } catch (e) {
     console.error(e);
     setStatus(`Save failed: ${toErrorString(e)}`, "err");
   }
 });
 
-convertRustBtn.addEventListener("click", async () => {
+saveAsNativeBtn.addEventListener("click", async () => {
   try {
+    setStatus("Saving As…", "neutral");
     const xml = await exportXml();
     currentXml = xml;
-    lastRust = await invoke<string>("bpmn_to_rust", { xml });
+    const target = await saveAsFlow(xml);
+    if (!target) return;
+    setStatus(`Saved ${target}`, "neutral");
+  } catch (e) {
+    console.error(e);
+    setStatus(`Save As failed: ${toErrorString(e)}`, "err");
+  }
+});
+
+convertRustBtn.addEventListener("click", async () => {
+  try {
+    setStatus("Converting to Rust…", "neutral");
+    const saved = await ensureSavedForAction();
+    if (!saved) return;
+    lastRust = await invoke<string>("bpmn_to_rust", { xml: saved.xml });
     setActiveTab("rust");
     setStatus("Converted to Rust", "neutral");
   } catch (e) {
@@ -463,9 +779,12 @@ convertRustBtn.addEventListener("click", async () => {
 
 convertTsBtn.addEventListener("click", async () => {
   try {
-    const xml = await exportXml();
-    currentXml = xml;
-    lastTs = await invoke<string>("bpmn_to_ts", { xml });
+    setStatus("Converting to TS…", "neutral");
+    const saved = await ensureSavedForAction();
+    if (!saved) return;
+    // Requested behavior: BPMN -> Rust -> TS (convert Rust output, not BPMN directly).
+    lastRust = await invoke<string>("bpmn_to_rust", { xml: saved.xml });
+    lastTs = await invoke<string>("rust_to_ts", { rust: lastRust });
     setActiveTab("ts");
     setStatus("Converted to TS", "neutral");
   } catch (e) {
@@ -474,15 +793,93 @@ convertTsBtn.addEventListener("click", async () => {
   }
 });
 
+syncFromRustBtn.addEventListener("click", async () => {
+  try {
+    if (!lastRust.trim()) {
+      setStatus("Sync ← Rust: convert to Rust first", "warn");
+      return;
+    }
+    const decision = await maybePromptToSaveBeforeDestructive({
+      actionName: "Sync ← Rust",
+      saveLabel: "Save & Sync"
+    });
+    if (decision === "cancel") return;
+    if (decision === "save") {
+      const saved = await ensureSavedForAction();
+      if (!saved) return;
+    }
+
+    setStatus("Syncing from Rust…", "neutral");
+    const nextXml = await invoke<string>("rust_to_bpmn", { rust: lastRust });
+    await loadXml(nextXml);
+    setActiveTab("bpmn");
+    setStatus("Synced diagram from Rust", "neutral");
+  } catch (e) {
+    console.error(e);
+    setStatus(`Sync ← Rust failed: ${toErrorString(e)}`, "err");
+  }
+});
+
+syncFromTsBtn.addEventListener("click", async () => {
+  try {
+    if (!lastTs.trim()) {
+      setStatus("Sync ← TS: convert to TS first", "warn");
+      return;
+    }
+    const decision = await maybePromptToSaveBeforeDestructive({
+      actionName: "Sync ← TS",
+      saveLabel: "Save & Sync"
+    });
+    if (decision === "cancel") return;
+    if (decision === "save") {
+      const saved = await ensureSavedForAction();
+      if (!saved) return;
+    }
+
+    setStatus("Syncing from TS…", "neutral");
+    const nextXml = await invoke<string>("ts_to_bpmn", { ts: lastTs });
+    await loadXml(nextXml);
+    setActiveTab("bpmn");
+    setStatus("Synced diagram from TS", "neutral");
+  } catch (e) {
+    console.error(e);
+    setStatus(`Sync ← TS failed: ${toErrorString(e)}`, "err");
+  }
+});
+
 validateBtn.addEventListener("click", async () => {
   try {
-    const xml = await exportXml();
-    currentXml = xml;
-    lastValidate = await invoke<ValidateResult>("validate_roundtrip", { xml });
+    setStatus("Validating…", "neutral");
+    const saved = await ensureSavedForAction();
+    if (!saved) return;
+    lastValidate = await invoke<ValidateResult>("validate_roundtrip", { xml: saved.xml });
     lastRust = lastValidate.rust_direct;
     setActiveTab("out");
     // Requested UX: blue when not valid, green when valid.
     setStatus(lastValidate.ok ? "Validate OK" : "Validate FAILED", lastValidate.ok ? "ok" : "warn");
+
+    const pre = document.createElement("pre");
+    pre.textContent = [
+      `OK: ${lastValidate.ok}`,
+      "",
+      "--- stdout (direct) ---",
+      lastValidate.stdout_direct,
+      "--- stdout (roundtrip) ---",
+      lastValidate.stdout_roundtrip,
+      "--- rust (direct) ---",
+      lastValidate.rust_direct,
+      "--- rust (roundtrip) ---",
+      lastValidate.rust_roundtrip,
+      "--- bpmn (roundtrip) ---",
+      lastValidate.bpmn_roundtrip
+    ].join("\n");
+
+    await showChoiceModal({
+      title: lastValidate.ok ? "Validate OK" : "Validate FAILED",
+      body: pre,
+      choices: [{ id: "close", label: "Close", variant: "primary" }],
+      dismissId: "close"
+    });
   } catch (e) {
     console.error(e);
     setStatus(`Validate failed: ${toErrorString(e)}`, "err");
@@ -518,5 +915,36 @@ tabRust.addEventListener("click", () => setActiveTab("rust"));
 tabTs.addEventListener("click", () => setActiveTab("ts"));
 tabOut.addEventListener("click", () => setActiveTab("out"));
 
-loadXml(DEFAULT_XML);
-setActiveTab("bpmn");
+// Initial setup
+loadLastDirFromStorage();
+updateButtonStates();
+
+window.addEventListener("error", (ev) => {
+  const msg = (ev.error instanceof Error ? ev.error.stack ?? ev.error.message : String(ev.message ?? ev.error)) || "Unknown error";
+  console.error(ev.error);
+  setStatus(`Error: ${msg}`, "err");
+});
+
+window.addEventListener("unhandledrejection", (ev) => {
+  const reason = (ev.reason instanceof Error ? ev.reason.stack ?? ev.reason.message : toErrorString(ev.reason)) || "Unknown rejection";
+  console.error(ev.reason);
+  setStatus(`Unhandled: ${reason}`, "err");
+});
+
+(async () => {
+  try {
+    await loadXml(DEFAULT_XML);
+    // Record the canonical default template as bpmn-js exports it.
+    try {
+      defaultTemplateCanonical = await exportXml();
+      lastSavedXml = defaultTemplateCanonical;
+    } catch {
+      defaultTemplateCanonical = DEFAULT_XML;
+      lastSavedXml = DEFAULT_XML;
+    }
+    setActiveTab("bpmn");
+  } catch (e) {
+    console.error(e);
+    showStartupError("Startup failed", toErrorString(e));
+  }
+})();

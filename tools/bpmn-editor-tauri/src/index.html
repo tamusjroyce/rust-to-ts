@@ -12,10 +12,13 @@
         <button id="newBtn" type="button">New</button>
 
         <button id="openNativeBtn" type="button">Open…</button>
-        <button id="saveNativeBtn" type="button">Save…</button>
+        <button id="saveNativeBtn" type="button">Save</button>
+        <button id="saveAsNativeBtn" type="button">Save As…</button>
 
         <button id="convertRustBtn" type="button">Convert → Rust</button>
         <button id="convertTsBtn" type="button">Convert → TS</button>
+        <button id="syncFromRustBtn" type="button">Sync ← Rust</button>
+        <button id="syncFromTsBtn" type="button">Sync ← TS</button>
         <button id="validateBtn" type="button">Validate</button>
       </div>
     </header>
@@ -44,6 +47,17 @@
     <footer class="footer">
       <div id="status">Ready</div>
     </footer>
+
+    <div id="modalOverlay" class="modalOverlay hidden" role="dialog" aria-modal="true">
+      <div class="modal">
+        <div class="modalHeader">
+          <div id="modalTitle" class="modalTitle">Modal</div>
+          <button id="modalCloseBtn" type="button" class="modalClose" aria-label="Close">×</button>
+        </div>
+        <div id="modalBody" class="modalBody"></div>
+        <div id="modalActions" class="modalActions"></div>
+      </div>
+    </div>
 
     <script type="module" src="./main.ts"></script>
   </body>

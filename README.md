@@ -1,10 +1,10 @@
 # ROADMAP
 
-0. Give it a quick try. But don't get your hopes up just yet
-1. Under Construction: Work in progress
-2. Rust to Typescript v0.0.001
-3. Typescript to Rust v0.0.001
-4. UML:
+1. Give it a quick try. But don't get your hopes up just yet
+2. Under Construction: Work in progress
+3. Rust to Typescript v0.0.001
+4. Typescript to Rust v0.0.001
+5. UML:
   - a. BPMN v0.0.002, editor opens and barely functions (does not run Conversion. Validate, New, Open, Save yet)
   - b. n8n n/a
   - c. node-red n/a

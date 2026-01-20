@@ -46,6 +46,11 @@ button, .fileLabel {
   font-size: 14px;
 }
 
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 button:hover, .fileLabel:hover {
   border-color: #334155;
 }
@@ -199,4 +204,88 @@ button:hover, .fileLabel:hover {
 
 .djs-direct-editing-content ::selection {
   background: rgba(147, 197, 253, 0.35);
+}
+
+/* Simple modal */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.58);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 9999;
+}
+
+.modalOverlay.hidden {
+  display: none;
+}
+
+.modal {
+  width: min(920px, 96vw);
+  max-height: min(78vh, 780px);
+  background: #0b1020;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: #0f172a;
+}
+
+.modalTitle {
+  font-weight: 600;
+}
+
+.modalClose {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.modalBody {
+  padding: 12px;
+  overflow: auto;
+  color: var(--text);
+}
+
+.modalBody pre {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.65);
+  white-space: pre-wrap;
+}
+
+.modalActions {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  background: #0f172a;
+  justify-content: flex-end;
+}
+
+.btnPrimary {
+  border-color: #334155;
+  background: #0b1533;
+}
+
+.btnDanger {
+  border-color: rgba(248, 113, 113, 0.35);
+  background: rgba(127, 29, 29, 0.35);
 }

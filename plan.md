@@ -48,6 +48,67 @@ Make `ast_v2` the primary, AST‑driven Rust ⇄ TypeScript converter for all ex
   - Use `cargo run --bin tester -- conversion/Examples/<ExampleName> ...` or an equivalent flow to compare Rust vs Deno outputs on the converted artifacts.
   - Outputs from Rust and Deno must match exactly; any divergence is treated as a regression.
 
+## BPMN Editor (Tauri) — UX + File Workflow
+
+Goal: make the desktop BPMN editor reliably support `New`, `Open`, `Save`, `Save As`, `Convert`, and `Validate`, with correct prompts and persistence.
+
+### Tracking Rules
+- Use task checkboxes below.
+- A task is only marked `[x]` after its **Validation** steps are run and confirmed.
+
+### Tasks
+
+- [ ] **New**: detect unsaved changes vs default template
+  - Requirements:
+    - If editor contents differ from the default BPMN template and/or there are unsaved edits, prompt: **Save & New**, **Discard**, **Cancel**.
+    - If unchanged (matches default template / no unsaved edits), no prompt; load default template into the BPMN XML editor and canvas.
+  - Validation:
+    - Modify BPMN XML, click New ⇒ prompt appears; each option behaves as expected.
+    - With a fresh default template, click New ⇒ no prompt and template stays.
+
+- [ ] **Open**: file dialog + persistent last folder
+  - Requirements:
+    - Use a native file open dialog to pick a `.bpmn` file.
+    - Remember the last folder used for Open; persist across app restart.
+  - Validation:
+    - Open a file in folder A, restart app, Open again ⇒ dialog starts in folder A.
+
+- [ ] **Save**: disabled until a file is opened; external-modification detection
+  - Requirements:
+    - Save button is disabled/greyed out until a file has been opened (or a path is chosen via Save As).
+    - If file on disk changed since it was opened (or since last Save), prompt: **Overwrite** or **Cancel**.
+    - Otherwise save silently.
+  - Validation:
+    - Open file, edit outside app, then Save ⇒ overwrite prompt appears.
+    - With no external change, Save writes without prompting.
+
+- [ ] **Save As**: choose path; confirm overwrite
+  - Requirements:
+    - Save As opens a native save dialog.
+    - If target exists, prompt overwrite/cancel.
+    - After Save As, the chosen path becomes the current file (enables Save).
+  - Validation:
+    - Save As to new path creates file.
+    - Save As to existing path prompts.
+
+- [ ] **Convert**: save-first with Save rules, then run conversions
+  - Requirements:
+    - Convert triggers the same save behavior as Save (including external-change prompt).
+    - After saving, run:
+      - BPMN → Rust
+      - BPMN → Rust → JavaScript
+    - Output should be visible in the UI (Rust tab / TS tab / JS tab or explicit output panel).
+  - Validation:
+    - With unsaved edits, Convert prompts to save; after save, outputs update.
+
+- [ ] **Validate**: run validator and show console outputs
+  - Requirements:
+    - Runs round-trip validation and shows the Rust/Deno outputs in a window/panel.
+    - Status should clearly indicate PASS/FAIL.
+  - Validation:
+    - Validate on known-good example shows PASS and outputs.
+    - Intentionally break a directive and Validate shows FAIL with details.
+
 ## Implementation Notes for Future Work
 - Start from the existing HelloWorld mappings in `src/ast_v2/mod.rs` (`from_rust_module`, `from_ts_module`) and generalize them to handle:
   - Structs, functions, and basic types used across `Examples/src`.
