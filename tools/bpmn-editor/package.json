@@ -1,0 +1,13 @@
+{
+  "name": "bpmn-editor-web-tests",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "serve": "deno run --allow-net --allow-read server.ts",
+    "test:visual": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0"
+  }
+}

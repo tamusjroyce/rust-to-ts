@@ -80,7 +80,16 @@
     "https://deno.land/std@0.224.0/path/windows/resolve.ts": "8dae1dadfed9d46ff46cc337c9525c0c7d959fb400a6308f34595c45bdca1972",
     "https://deno.land/std@0.224.0/path/windows/to_file_url.ts": "40e560ee4854fe5a3d4d12976cef2f4e8914125c81b11f1108e127934ced502e",
     "https://deno.land/std@0.224.0/path/windows/to_namespaced_path.ts": "4ffa4fb6fae321448d5fe810b3ca741d84df4d7897e61ee29be961a6aac89a4c",
+    "https://esm.sh/bpmn-auto-layout@1.1.1/denonext/bpmn-auto-layout.bundle.mjs": "92596d9cecffbe64f72a78131ccccc13623f0fc0633b8b2c58acaa6614fefd93",
+    "https://esm.sh/bpmn-auto-layout@1.1.1?bundle": "687266d6a430fcf56da9fd921d74244d6e5502c989bad56c9683ed9938539b65",
     "https://esm.sh/bpmn-js@18.5.0/denonext/lib/Modeler.bundle.mjs": "b24cee753f4db5ec1f583927a086b3d6a4acd1dd7a173feb0dfd618b07e2fb8a",
     "https://esm.sh/bpmn-js@18.5.0/lib/Modeler?bundle": "f7f4df1c7fcc053cd5dbaaf395d08cac71dc09888d78c071194367867cc38766"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@playwright/test@^1.50.0"
+      ]
+    }
   }
 }

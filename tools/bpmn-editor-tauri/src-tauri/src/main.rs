@@ -90,12 +90,12 @@ fn bpmn_to_ts(xml: String) -> Result<String, String> {
     // Intentionally run BPMN -> Rust -> TS so we preserve the exact supported
     // BPMN subset semantics implemented in the Rust emitter.
     let rust = convert_bpmn_xml_to_rust_code(&xml)?;
-    convert_rust_src_to_ts(&rust, true)
+    convert_rust_src_to_ts(&rust, false)
 }
 
 #[tauri::command]
 fn rust_to_ts(rust: String) -> Result<String, String> {
-    convert_rust_src_to_ts(&rust, true)
+    convert_rust_src_to_ts(&rust, false)
 }
 
 #[tauri::command]

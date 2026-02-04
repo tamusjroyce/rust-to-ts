@@ -1,6 +1,8 @@
 import Modeler from "bpmn-js/lib/Modeler";
-import { invoke } from "@tauri-apps/api/core";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { invoke, open, save } from "./tauri_shim";
+
+import * as monaco from "monaco-editor";
+import "monaco-editor/esm/vs/basic-languages/rust/rust.contribution";
 
 const canvas = document.getElementById("canvas") as HTMLDivElement;
 const status = document.getElementById("status") as HTMLDivElement;
@@ -26,7 +28,8 @@ const syncFromDiagramBtn = document.getElementById(
 ) as HTMLButtonElement;
 
 const bpmnEditor = document.getElementById("bpmnEditor") as HTMLTextAreaElement;
-const panel = document.getElementById("panel") as HTMLPreElement;
+const codeEditorHost = document.getElementById("codeEditor") as HTMLDivElement;
+const outPanel = document.getElementById("outPanel") as HTMLPreElement;
 
 const modalOverlay = document.getElementById("modalOverlay") as HTMLDivElement;
 const modalTitle = document.getElementById("modalTitle") as HTMLDivElement;
@@ -218,27 +221,38 @@ function setActiveTab(next: typeof activeTab) {
 function renderPanel() {
   if (activeTab === "bpmn") {
     bpmnEditor.style.display = "block";
-    panel.style.display = "none";
+    codeEditorHost.style.display = "none";
+    outPanel.style.display = "none";
     bpmnEditor.value = editorXml || currentXml || "";
     return;
   }
+
   bpmnEditor.style.display = "none";
-  panel.style.display = "block";
+  outPanel.style.display = "none";
+  codeEditorHost.style.display = "block";
+
   if (activeTab === "rust") {
-    panel.textContent = lastRust || "(convert to Rust first)";
+    codeEditor.setModel(rustModel);
+    codeEditor.updateOptions({ readOnly: false });
+    if (!rustModel.getValue() && lastRust) rustModel.setValue(lastRust);
     return;
   }
   if (activeTab === "ts") {
-    panel.textContent = lastTs || "(convert to TS first)";
+    codeEditor.setModel(tsModel);
+    codeEditor.updateOptions({ readOnly: false });
+    if (!tsModel.getValue() && lastTs) tsModel.setValue(lastTs);
     return;
   }
+
   // out
+  codeEditorHost.style.display = "none";
+  outPanel.style.display = "block";
   if (!lastValidate) {
-    panel.textContent = "(validate to see results)";
+    outPanel.textContent = "(validate to see results)";
     return;
   }
   const v = lastValidate;
-  panel.textContent = [
+  outPanel.textContent = [
     `OK: ${v.ok}`,
     "",
     "--- stdout (direct) ---",
@@ -249,6 +263,40 @@ function renderPanel() {
     v.bpmn_roundtrip
   ].join("\n");
 }
+
+const rustModel = monaco.editor.createModel("", "rust");
+const tsModel = monaco.editor.createModel("", "typescript");
+
+const codeEditor = monaco.editor.create(codeEditorHost, {
+  theme: "vs-dark",
+  automaticLayout: true,
+  minimap: { enabled: false },
+  fontSize: 12,
+  wordWrap: "on",
+  tabSize: 2,
+  insertSpaces: true,
+  readOnly: false,
+});
+
+// Stabilize visual output for screenshot tests.
+if ((globalThis as any).__RUST_TO_TS_E2E__) {
+  codeEditor.updateOptions({
+    cursorBlinking: "solid",
+    renderLineHighlight: "none",
+    renderWhitespace: "none",
+    occurrencesHighlight: "off",
+    selectionHighlight: false,
+    overviewRulerLanes: 0,
+  } as any);
+}
+
+codeEditor.onDidChangeModelContent(() => {
+  const model = codeEditor.getModel();
+  if (!model) return;
+  const text = model.getValue();
+  if (model === rustModel) lastRust = text;
+  if (model === tsModel) lastTs = text;
+});
 
 const DEFAULT_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -338,7 +386,18 @@ function addBasicDiForLinearProcess(xml: string): string {
 
   // Collect nodes
   const nodes: Element[] = [];
-  for (const name of ["startEvent", "serviceTask", "endEvent"]) {
+  // NOTE: Keep this list in sync with the BPMN we emit.
+  // If an element type is not collected here, we will not create BPMNDI shapes for it,
+  // and bpmn-js will not render it.
+  for (const name of [
+    "startEvent",
+    "endEvent",
+    "task",
+    "serviceTask",
+    "exclusiveGateway",
+    "parallelGateway",
+    "subProcess"
+  ]) {
     const els = (process as unknown as Document).getElementsByTagNameNS
       ? process.getElementsByTagNameNS(NS_BPMN, name)
       : process.getElementsByTagName(name);
@@ -351,7 +410,7 @@ function addBasicDiForLinearProcess(xml: string): string {
   }
 
   // Collect sequence flows
-  const flows: { id: string; source: string; target: string }[] = [];
+  const flows: { id: string; source: string; target: string; name: string }[] = [];
   const flowEls = (process as unknown as Document).getElementsByTagNameNS
     ? process.getElementsByTagNameNS(NS_BPMN, "sequenceFlow")
     : process.getElementsByTagName("sequenceFlow");
@@ -360,34 +419,58 @@ function addBasicDiForLinearProcess(xml: string): string {
     const id = el.getAttribute("id") || `Flow_${i + 1}`;
     const source = el.getAttribute("sourceRef") || "";
     const target = el.getAttribute("targetRef") || "";
+    const name = el.getAttribute("name") || "";
     if (source && target) {
-      flows.push({ id, source, target });
+      flows.push({ id, source, target, name });
     }
   }
 
-  const outgoing = new Map<string, { flowId: string; target: string }[]>();
+  const outgoing = new Map<string, { flowId: string; target: string; name: string }[]>();
   for (const f of flows) {
     const arr = outgoing.get(f.source) ?? [];
-    arr.push({ flowId: f.id, target: f.target });
+    arr.push({ flowId: f.id, target: f.target, name: f.name });
     outgoing.set(f.source, arr);
   }
 
-  // Determine a best-effort linear order by following sequence flows from the first start event.
+  // Prefer "yes/then/loop" ahead of "no/else/exit" for layout + lane assignment.
+  function flowPriority(n: string): number {
+    const s = (n || "").toLowerCase();
+    if (s === "yes" || s === "then" || s === "loop") return 0;
+    if (s === "no" || s === "else" || s === "exit") return 10;
+    if (s === "next") return 20;
+    return 5;
+  }
+  for (const [k, arr] of outgoing.entries()) {
+    arr.sort((a, b) => {
+      const pa = flowPriority(a.name);
+      const pb = flowPriority(b.name);
+      if (pa !== pb) return pa - pb;
+      return a.target.localeCompare(b.target);
+    });
+    outgoing.set(k, arr);
+  }
+
+  // Determine a best-effort layout order by traversing the flow graph starting at the first start event.
+  // This is still simplistic (we lay things out in a single column), but it ensures gateways and loop
+  // back-edges get shapes so they are visible.
   const start = getFirstElByLocalName(process, "startEvent");
   const order: string[] = [];
   const visited = new Set<string>();
   const startId = start?.getAttribute("id");
   if (startId) {
-    order.push(startId);
     visited.add(startId);
-    let cur = startId;
-    while (true) {
+
+    const q: string[] = [startId];
+    while (q.length) {
+      const cur = q.shift()!;
+      order.push(cur);
       const outs = outgoing.get(cur) ?? [];
-      const next = outs.find(o => !visited.has(o.target) && nodeById.has(o.target));
-      if (!next) break;
-      order.push(next.target);
-      visited.add(next.target);
-      cur = next.target;
+      for (const o of outs) {
+        if (!nodeById.has(o.target)) continue;
+        if (visited.has(o.target)) continue;
+        visited.add(o.target);
+        q.push(o.target);
+      }
     }
   }
 
@@ -395,21 +478,54 @@ function addBasicDiForLinearProcess(xml: string): string {
     if (!visited.has(id)) order.push(id);
   }
 
-  // Build bounds for shapes (vertical layout)
+  // Build bounds for shapes.
+  // Goal: reduce overlapping arrows by spreading branches into lanes and routing loop back-edges
+  // around the left side with extra bendpoints.
   const boundsById = new Map<string, Bounds>();
-  const x = 60;
-  let y = 60;
-  const gap = 120;
+  const indexById = new Map<string, number>();
+  for (let i = 0; i < order.length; i++) indexById.set(order[i], i);
+
+  // Lane assignment (best-effort): when a node fans out, keep the first outgoing in the same lane
+  // and push additional outgoing targets into new lanes.
+  const laneById = new Map<string, number>();
+  const startLane = 0;
+  if (startId) laneById.set(startId, startLane);
+  let nextLane = 1;
+
+  for (const cur of order) {
+    const curLane = laneById.get(cur) ?? 0;
+    const outs = outgoing.get(cur) ?? [];
+    for (let i = 0; i < outs.length; i++) {
+      const target = outs[i].target;
+      if (!nodeById.has(target)) continue;
+      if (laneById.has(target)) continue;
+      laneById.set(target, i === 0 ? curLane : nextLane++);
+    }
+  }
+  for (const id of nodeById.keys()) {
+    if (!laneById.has(id)) laneById.set(id, 0);
+  }
+
+  // Layout constants
+  const baseX = 80;
+  const baseY = 70;
+  const laneWidth = 260;
+  const rowHeight = 120;
 
   for (const id of order) {
     const el = nodeById.get(id);
     if (!el) continue;
     const local = el.localName;
     const isEvent = local === "startEvent" || local === "endEvent";
-    const width = isEvent ? 36 : 140;
-    const height = isEvent ? 36 : 80;
+    const isGateway = local === "exclusiveGateway" || local === "parallelGateway";
+    const width = isEvent ? 36 : isGateway ? 56 : 170;
+    const height = isEvent ? 36 : isGateway ? 56 : 90;
+
+    const lane = laneById.get(id) ?? 0;
+    const row = indexById.get(id) ?? 0;
+    const x = baseX + lane * laneWidth;
+    const y = baseY + row * rowHeight;
     boundsById.set(id, { x, y, width, height });
-    y += gap;
   }
 
   // Create BPMNDI
@@ -437,6 +553,7 @@ function addBasicDiForLinearProcess(xml: string): string {
   }
 
   // Edges
+  let backEdgeIdx = 0;
   for (const f of flows) {
     const src = boundsById.get(f.source);
     const dst = boundsById.get(f.target);
@@ -446,19 +563,63 @@ function addBasicDiForLinearProcess(xml: string): string {
     edge.setAttribute("id", `BPMNEdge_${f.id}`);
     edge.setAttribute("bpmnElement", f.id);
 
-    const x1 = src.x + src.width / 2;
-    const y1 = src.y + src.height;
-    const x2 = dst.x + dst.width / 2;
-    const y2 = dst.y;
+    const srcEl = nodeById.get(f.source);
+    const dstEl = nodeById.get(f.target);
+    const srcLocal = srcEl?.localName;
+    const dstLocal = dstEl?.localName;
+    const srcIsGateway = srcLocal === "exclusiveGateway" || srcLocal === "parallelGateway";
+    const dstIsGateway = dstLocal === "exclusiveGateway" || dstLocal === "parallelGateway";
 
-    const wp1 = doc.createElementNS(NS_DI, "di:waypoint");
-    wp1.setAttribute("x", String(x1));
-    wp1.setAttribute("y", String(y1));
-    const wp2 = doc.createElementNS(NS_DI, "di:waypoint");
-    wp2.setAttribute("x", String(x2));
-    wp2.setAttribute("y", String(y2));
-    edge.appendChild(wp1);
-    edge.appendChild(wp2);
+    const flowName = (f.name || "").toLowerCase();
+    const isYesFlow = flowName === "yes" || flowName === "then" || flowName === "loop";
+
+        // Sort flows to get a readable mainline.
+        // For if/elseif: keep "no/else" going down; branch "yes/then" to the right.
+        // For loops: keep "loop" going down; "exit" peels off.
+        function flowPriority(n: string): number {
+          const s = (n || "").toLowerCase();
+          if (s === "loop") return 0;
+          if (s === "no" || s === "else") return 1;
+          if (s === "exit") return 2;
+          if (s === "yes" || s === "then") return 10;
+          if (s === "next") return 20;
+          return 5;
+        }
+    const srcRow = indexById.get(f.source) ?? 0;
+    const dstRow = indexById.get(f.target) ?? 0;
+    const isBackEdge = dstRow <= srcRow;
+    const srcLane = laneById.get(f.source) ?? 0;
+    const dstLane = laneById.get(f.target) ?? 0;
+    const isCrossLane = srcLane !== dstLane;
+
+    const waypoints: Array<{ x: number; y: number }> = [];
+    waypoints.push({ x: x1, y: y1 });
+
+    if (isBackEdge) {
+      // Route loop-back edges around the left side so they don't overlap vertical flows.
+      const loopOffset = 140 + backEdgeIdx * 40;
+      backEdgeIdx++;
+      const leftX = Math.min(src.x, dst.x) - loopOffset;
+      waypoints.push({ x: leftX, y: y1 });
+      waypoints.push({ x: leftX, y: y2 });
+      waypoints.push({ x: x2, y: y2 });
+    } else if (isCrossLane) {
+      // Cross-lane forward flow: go down a bit, go sideways, then down into the target.
+      const midY = y1 + 24;
+      waypoints.push({ x: x1, y: midY });
+      waypoints.push({ x: x2, y: midY });
+      waypoints.push({ x: x2, y: y2 });
+    } else {
+      // Same-lane forward flow: straight down.
+      waypoints.push({ x: x2, y: y2 });
+    }
+
+    for (const p of waypoints) {
+      const wp = doc.createElementNS(NS_DI, "di:waypoint");
+      wp.setAttribute("x", String(p.x));
+      wp.setAttribute("y", String(p.y));
+      edge.appendChild(wp);
+    }
     plane.appendChild(edge);
   }
 
@@ -471,6 +632,17 @@ function hasBpmnDi(xml: string): boolean {
 }
 
 async function ensureDiagramRenders(xml: string): Promise<string> {
+        function isGatewayId(id: string): boolean {
+          const el = nodeById.get(id);
+          const local = el?.localName;
+          return local === "exclusiveGateway" || local === "parallelGateway";
+        }
+
+        function isDownPreferredFlowName(name: string): boolean {
+          const s = (name || "").toLowerCase();
+          return s === "no" || s === "else" || s === "loop" || s === "exit";
+        }
+
   if (hasBpmnDi(xml)) return xml;
   // bpmn-js imports semantic BPMN fine, but without DI it renders blank.
   // Add a simple DI (shapes + edges) so arrows render.
@@ -769,6 +941,7 @@ convertRustBtn.addEventListener("click", async () => {
     const saved = await ensureSavedForAction();
     if (!saved) return;
     lastRust = await invoke<string>("bpmn_to_rust", { xml: saved.xml });
+    rustModel.setValue(lastRust);
     setActiveTab("rust");
     setStatus("Converted to Rust", "neutral");
   } catch (e) {
@@ -784,7 +957,9 @@ convertTsBtn.addEventListener("click", async () => {
     if (!saved) return;
     // Requested behavior: BPMN -> Rust -> TS (convert Rust output, not BPMN directly).
     lastRust = await invoke<string>("bpmn_to_rust", { xml: saved.xml });
+    rustModel.setValue(lastRust);
     lastTs = await invoke<string>("rust_to_ts", { rust: lastRust });
+    tsModel.setValue(lastTs);
     setActiveTab("ts");
     setStatus("Converted to TS", "neutral");
   } catch (e) {
@@ -795,7 +970,8 @@ convertTsBtn.addEventListener("click", async () => {
 
 syncFromRustBtn.addEventListener("click", async () => {
   try {
-    if (!lastRust.trim()) {
+    const rustText = rustModel.getValue();
+    if (!rustText.trim()) {
       setStatus("Sync ← Rust: convert to Rust first", "warn");
       return;
     }
@@ -810,7 +986,7 @@ syncFromRustBtn.addEventListener("click", async () => {
     }
 
     setStatus("Syncing from Rust…", "neutral");
-    const nextXml = await invoke<string>("rust_to_bpmn", { rust: lastRust });
+    const nextXml = await invoke<string>("rust_to_bpmn", { rust: rustText });
     await loadXml(nextXml);
     setActiveTab("bpmn");
     setStatus("Synced diagram from Rust", "neutral");
@@ -822,7 +998,8 @@ syncFromRustBtn.addEventListener("click", async () => {
 
 syncFromTsBtn.addEventListener("click", async () => {
   try {
-    if (!lastTs.trim()) {
+    const tsText = tsModel.getValue();
+    if (!tsText.trim()) {
       setStatus("Sync ← TS: convert to TS first", "warn");
       return;
     }
@@ -837,7 +1014,7 @@ syncFromTsBtn.addEventListener("click", async () => {
     }
 
     setStatus("Syncing from TS…", "neutral");
-    const nextXml = await invoke<string>("ts_to_bpmn", { ts: lastTs });
+    const nextXml = await invoke<string>("ts_to_bpmn", { ts: tsText });
     await loadXml(nextXml);
     setActiveTab("bpmn");
     setStatus("Synced diagram from TS", "neutral");

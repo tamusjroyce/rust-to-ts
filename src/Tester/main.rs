@@ -8,23 +8,28 @@ use std::process::{Command, Stdio};
 #[path = "../ast_v2/mod.rs"]
 mod ast_v2;
 
+mod bpmn;
+mod typescript;
+
 fn main() {
     // Usage:
     //   tester <Examples/HelloWorld> [-- <extra args forwarded to example>]
-    //   tester --bpmn <file.bpmn|file.xml>
+    //   tester --bpmn <file.bpmn|file.xml|file.rs|rust_dir>
     let mut args = std::env::args().skip(1);
     let first = args.next().unwrap_or_else(|| {
-        eprintln!("Usage: tester <Examples/HelloWorld> | tester --bpmn <file.bpmn|file.xml>");
+        eprintln!(
+            "Usage: tester <example_dir> [extra args]\n       tester --bpmn <file.bpmn|file.xml|file.rs|rust_dir>"
+        );
         std::process::exit(2);
     });
 
     if first == "--bpmn" {
         let file = args.next().unwrap_or_else(|| {
-            eprintln!("Usage: tester --bpmn <file.bpmn|file.xml>");
+            eprintln!("Usage: tester --bpmn <file.bpmn|file.xml|file.rs|rust_dir>");
             std::process::exit(2);
         });
         let path = PathBuf::from(file);
-        if let Err(e) = run_bpmn_roundtrip(&path) {
+        if let Err(e) = bpmn::run_bpmn_roundtrip(&path) {
             eprintln!("BPMN test failed: {}", e);
             std::process::exit(1);
         }
@@ -62,7 +67,7 @@ fn main() {
     };
 
     // 2) Build (if needed) and run the TypeScript example
-    let ts_out = match run_ts_example(&ts_file, &extra_args) {
+    let ts_out = match typescript::run_ts_example(&ts_file, &extra_args) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("Failed to run TypeScript example: {}", e);
@@ -95,62 +100,6 @@ fn main() {
     println!("--- Deno ---\n{}", ts_out);
 
     std::process::exit(if matched { 0 } else { 1 });
-}
-
-fn run_bpmn_roundtrip(bpmn_path: &Path) -> Result<(), String> {
-    let xml = fs::read_to_string(bpmn_path)
-        .map_err(|e| format!("Failed to read {}: {}", bpmn_path.display(), e))?;
-
-    let rust_code = ast_v2::bpmn::convert_bpmn_xml_to_rust_code(&xml)?;
-    let stem = bpmn_path
-        .file_stem()
-        .and_then(OsStr::to_str)
-        .unwrap_or("bpmn");
-
-    let tmp_dir = PathBuf::from("target/tmp");
-    let _ = fs::create_dir_all(&tmp_dir);
-    let rs_out = tmp_dir.join(format!("{}_from_bpmn.rs", stem));
-    fs::write(&rs_out, &rust_code)
-        .map_err(|e| format!("Failed to write {}: {}", rs_out.display(), e))?;
-
-    // Compile and run the generated Rust. It may be a no-op, but should compile.
-    let exe_out = if cfg!(windows) {
-        tmp_dir.join(format!("{}_from_bpmn.exe", stem))
-    } else {
-        tmp_dir.join(format!("{}_from_bpmn", stem))
-    };
-
-    let status = Command::new("rustc")
-        .arg(&rs_out)
-        .arg("-o")
-        .arg(&exe_out)
-        .stderr(Stdio::inherit())
-        .status()
-        .map_err(|e| format!("rustc failed to start: {}", e))?;
-    if !status.success() {
-        return Err(format!("rustc failed with status: {}", status));
-    }
-
-    let run = Command::new(&exe_out)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|e| format!("failed to run generated Rust: {}", e))?;
-    if !run.status.success() {
-        return Err(format!(
-            "generated Rust exited with status {}\nStderr:\n{}",
-            run.status,
-            String::from_utf8_lossy(&run.stderr)
-        ));
-    }
-
-    let bpmn_xml = ast_v2::bpmn::convert_rust_code_to_bpmn_xml(&rust_code)?;
-    ast_v2::bpmn::validate_bpmn_xml(&bpmn_xml)?;
-
-    println!("--- BPMN input ---\n{}", xml);
-    println!("--- Rust generated ---\n{}", rust_code);
-    println!("--- BPMN roundtrip ---\n{}", bpmn_xml);
-    Ok(())
 }
 
 fn is_examples_src_converter_root(root: &Path) -> bool {
@@ -276,79 +225,6 @@ fn run_rust_example(example_root: &Path, rs_file: &Path, extra_args: &[String]) 
         return Err(format!("Rust example exited with status {}\nStderr:\n{}",
             output.status,
             String::from_utf8_lossy(&output.stderr)));
-    }
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
-}
-
-fn run_ts_example(ts_file: &Path, extra_args: &[String]) -> Result<String, String> {
-    // Prefer Deno to execute TypeScript directly. We create a tiny wrapper that
-    // appends a call to `main();` so examples with a main() entrypoint run.
-    run_with_deno(ts_file, extra_args)
-}
-
-fn run_with_deno(ts_file: &Path, extra_args: &[String]) -> Result<String, String> {
-    // Build a small wrapper that imports the module and calls an exported main(),
-    // falling back to global main() if needed.
-    let stem = ts_file
-        .file_stem()
-        .and_then(OsStr::to_str)
-        .ok_or_else(|| "Invalid TS file name".to_string())?;
-
-    let abs = std::fs::canonicalize(ts_file)
-        .map_err(|e| format!("failed to resolve TS path {}: {}", ts_file.display(), e))?;
-    let mut abs_str = abs.to_string_lossy().to_string();
-    if abs_str.starts_with("\\\\?\\") { // strip Windows verbatim prefix \\?\
-        abs_str = abs_str[4..].to_string();
-    }
-    let mut file_url = String::from("file:///");
-    file_url.push_str(&abs_str.replace('\\', "/"));
-
-    let tmp_dir = PathBuf::from("target/tmp");
-    let _ = fs::create_dir_all(&tmp_dir);
-    let wrapper_path = tmp_dir.join(format!("{}_deno_run.ts", stem));
-    // Extract optional --seed=... and --rng=... from extra args to seed TS PRNG and select RNG
-    let mut js_preamble = String::new();
-    if let Some(seed_arg) = extra_args.iter().find(|a| a.starts_with("--seed=")) {
-        if let Some(v) = seed_arg.splitn(2, '=').nth(1) {
-            if let Ok(seed_val) = v.parse::<u64>() {
-                let seed32 = (seed_val & 0xFFFF_FFFF) as u32;
-                js_preamble.push_str(&format!("(globalThis as any).__RUST_TO_TS_SEED = {} as number;\n", seed32));
-                js_preamble.push_str(&format!("(globalThis as any).__RUST_TO_TS_SEED_U64 = BigInt(\"{}\");\n", seed_val));
-            }
-        }
-    }
-    if let Some(rng_arg) = extra_args.iter().find(|a| a.starts_with("--rng=")) {
-        if let Some(v) = rng_arg.splitn(2, '=').nth(1) {
-            let name = v.to_ascii_lowercase();
-            js_preamble.push_str(&format!("(globalThis as any).__RUST_TO_TS_RNG = \"{}\";\n", name));
-        }
-    }
-
-    let wrapper_code = format!(
-        "// auto-generated wrapper for Deno\n{}import * as mod from \"{}\";\nasync function run() {{\n  if (typeof (mod as any).main === 'function') {{\n    await (mod as any).main();\n    return;\n  }}\n  // Fallback to global main if someone inlines the function into globalThis\n  const g: any = globalThis as any;\n  if (typeof g.main === 'function') {{\n    g.main();\n    return;\n  }}\n  console.error('No main() found to run');\n  Deno.exit(1);\n}}\nrun().catch((e) => {{ console.error(e); Deno.exit(1); }});\n",
-        js_preamble,
-        file_url
-    );
-    fs::write(&wrapper_path, wrapper_code)
-        .map_err(|e| format!("failed to write Deno wrapper: {}", e))?;
-
-    let deno_cmd = if cfg!(windows) { "deno.exe" } else { "deno" };
-    let output = Command::new(deno_cmd)
-        .arg("run")
-        .arg("--quiet")
-        .arg("--allow-run")
-        .arg(&wrapper_path)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|e| format!("failed to run deno: {}", e))?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "deno exited with status {}\nStderr:\n{}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr)
-        ));
     }
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }

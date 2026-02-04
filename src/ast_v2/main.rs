@@ -18,6 +18,7 @@ enum Direction {
 fn main() {
     let mut args = env::args().skip(1);
     let mut dry_run = false;
+    let mut emit_bpmn = false;
     let mut output_dir: Option<PathBuf> = None;
     let mut inputs: Vec<PathBuf> = Vec::new();
     let mut direction = Direction::RsToTs;
@@ -25,6 +26,7 @@ fn main() {
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--dry-run" => dry_run = true,
+            "--emit-bpmn" => emit_bpmn = true,
             "--output-dir" => {
                 let val = args.next().unwrap_or_else(|| {
                     eprintln!("--output-dir requires a path argument");
@@ -39,7 +41,7 @@ fn main() {
     }
 
     if inputs.is_empty() {
-        eprintln!("Usage: ast-v2 [--dry-run] [--output-dir DIR] <path> [more paths...]");
+        eprintln!("Usage: ast-v2 [--dry-run] [--emit-bpmn] [--output-dir DIR] <path> [more paths...]");
         eprintln!("  <path> can be a file or directory, e.g. Examples/HelloWorld");
         std::process::exit(2);
     }
@@ -56,7 +58,7 @@ fn main() {
     let mut had_error = false;
 
     for input in &inputs {
-        if let Err(e) = process_path(input, &output_dir, dry_run, direction) {
+        if let Err(e) = process_path(input, &output_dir, dry_run, direction, emit_bpmn) {
             eprintln!("{}", e);
             had_error = true;
         }
@@ -67,7 +69,13 @@ fn main() {
     }
 }
 
-fn process_path(path: &Path, output_dir: &Path, dry_run: bool, direction: Direction) -> Result<(), String> {
+fn process_path(
+    path: &Path,
+    output_dir: &Path,
+    dry_run: bool,
+    direction: Direction,
+    emit_bpmn: bool,
+) -> Result<(), String> {
     if path.starts_with(output_dir) {
         return Ok(());
     }
@@ -85,7 +93,7 @@ fn process_path(path: &Path, output_dir: &Path, dry_run: bool, direction: Direct
             let entry = entry
                 .map_err(|e| format!("Failed to read dir entry in {}: {}", path.display(), e))?;
             let child = entry.path();
-            process_path(&child, output_dir, dry_run, direction)?;
+            process_path(&child, output_dir, dry_run, direction, emit_bpmn)?;
         }
         return Ok(());
     }
@@ -188,6 +196,15 @@ fn process_path(path: &Path, output_dir: &Path, dry_run: bool, direction: Direct
                     path.display(),
                     dest_path.display()
                 );
+                if emit_bpmn {
+                    let mut bpmn_rel = rel.clone();
+                    bpmn_rel.set_extension("bpmn");
+                    println!(
+                        "--dry-run: would convert {} -> {}",
+                        path.display(),
+                        output_dir.join(&bpmn_rel).display()
+                    );
+                }
             }
             ("ts", Direction::TsToRs) | ("ts", Direction::Both) => {
                 println!(
@@ -217,7 +234,6 @@ fn process_path(path: &Path, output_dir: &Path, dry_run: bool, direction: Direct
     if ext == "bpmn" {
         let xml = fs::read_to_string(path)
             .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
-        let module = ast_v2::bpmn::convert_bpmn_xml_to_module(&xml)?;
 
         let mut rs_dest_rel = rel.clone();
         rs_dest_rel.set_extension("rs");
@@ -226,9 +242,12 @@ fn process_path(path: &Path, output_dir: &Path, dry_run: bool, direction: Direct
             fs::create_dir_all(parent)
                 .map_err(|e| format!("Failed to create dir {}: {}", parent.display(), e))?;
         }
-        fs::write(&rs_dest_path, module_to_rust(&module))
+        let rust_out = ast_v2::bpmn::convert_bpmn_xml_to_rust_code(&xml)?;
+        fs::write(&rs_dest_path, rust_out)
             .map_err(|e| format!("Failed to write {}: {}", rs_dest_path.display(), e))?;
         println!("Wrote {}", rs_dest_path.display());
+
+        let module = ast_v2::bpmn::convert_bpmn_xml_to_module(&xml)?;
 
         let mut ts_dest_rel = rel.clone();
         ts_dest_rel.set_extension("ts");
@@ -256,6 +275,26 @@ fn process_path(path: &Path, output_dir: &Path, dry_run: bool, direction: Direct
             fs::write(&dest_path, converted)
                 .map_err(|e| format!("Failed to write {}: {}", dest_path.display(), e))?;
             println!("Wrote {}", dest_path.display());
+
+            if emit_bpmn {
+                let rust_src = fs::read_to_string(path)
+                    .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+                let bpmn_xml = ast_v2::bpmn::convert_rust_code_to_bpmn_xml_with_path(
+                    &rust_src,
+                    Some(rel.to_string_lossy().replace('\\', "/")),
+                )?;
+
+                let mut bpmn_rel = rel.clone();
+                bpmn_rel.set_extension("bpmn");
+                let bpmn_path = output_dir.join(&bpmn_rel);
+                if let Some(parent) = bpmn_path.parent() {
+                    fs::create_dir_all(parent)
+                        .map_err(|e| format!("Failed to create dir {}: {}", parent.display(), e))?;
+                }
+                fs::write(&bpmn_path, bpmn_xml)
+                    .map_err(|e| format!("Failed to write {}: {}", bpmn_path.display(), e))?;
+                println!("Wrote {}", bpmn_path.display());
+            }
         }
         ("ts", Direction::TsToRs) | ("ts", Direction::Both) => {
             if let Some(parent) = dest_path.parent() {

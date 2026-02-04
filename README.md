@@ -5,7 +5,7 @@
 3. Rust to Typescript v0.0.001
 4. Typescript to Rust v0.0.001
 5. UML:
-  - a. BPMN v0.0.002, editor opens and barely functions (does not run Conversion. Validate, New, Open, Save yet)
+  - a. BPMN v0.0.002, editor opens and supports New/Open/Save/Save As/Convert/Validate
   - b. n8n n/a
   - c. node-red n/a
 

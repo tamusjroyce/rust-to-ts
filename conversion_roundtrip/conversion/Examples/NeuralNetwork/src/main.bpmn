@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1">
+  <process id="rust_source">
+    <startEvent id="StartEvent_1" name="Start"/>
+    <rustSource id="RustSource_1" path="Examples/NeuralNetwork/src/main.rs" contentHex="75736520747279313a3a4e657572616c4e6574776f726b3b0d0a75736520747279313a3a6d616b655f726e675f66726f6d5f617267733b0d0a75736520747279313a3a726e675f6e616d655f66726f6d5f617267733b0d0a0d0a666e206d61696e2829207b0d0a202020202f2f204578616d706c652064696d656e73696f6e7320666f722074686520334420677269643a0d0a202020202f2f2078203d206c61796572732c2079203d206e6f64657320706572206c617965722c207a203d207765696768747320706572206e6f64650d0a202020206c657420785f6c6179657273203d20337573697a653b0d0a202020206c657420795f6e6f646573203d20347573697a653b0d0a202020206c6574207a5f77656967687473203d20327573697a653b0d0a0d0a202020202f2f2043686f6f736520524e4720627920434c493a202d2d726e673d64656661756c747c6d756c626572727936347c70636736347c6368616368613820616e64206f7074696f6e616c202d2d736565643d3c7536343e0d0a202020206c657420726e675f6c6162656c203d20726e675f6e616d655f66726f6d5f61726773287374643a3a656e763a3a6172677328292e736b6970283129293b0d0a202020206c6574206d757420726e67203d206d616b655f726e675f66726f6d5f61726773287374643a3a656e763a3a6172677328292e736b6970283129293b0d0a0d0a202020202f2f20496e697469616c697a6520776974682072616e646f6d2076616c75657320696e205b2d312e302c20312e305d207669612073656c656374656420524e472028663634290d0a202020206c6574206e6e3a204e657572616c4e6574776f726b3c6636343e203d204e657572616c4e6574776f726b3a3a72616e646f6d5f756e69666f726d5f6636345f7769746828785f6c61796572732c20795f6e6f6465732c207a5f776569676874732c202d312e306636342c20312e306636342c20266d7574202a726e67293b0d0a0d0a202020207072696e746c6e212822524e473a207b7d222c20726e675f6c6162656c293b0d0a202020206c65742028782c20792c207a29203d206e6e2e64696d7328293b0d0a202020207072696e746c6e2128224e657572616c4e6574776f726b3c6636343e2064696d733a2078286c6179657273293d7b7d2c2079286e6f646573293d7b7d2c207a2877656967687473293d7b7d207c20746f74616c20656c656d656e74733d7b7d222c0d0a2020202020202020782c20792c207a2c206e6e2e6c656e2829293b0d0a0d0a202020202f2f205072696e74206120736d616c6c2073616d706c6520746f207665726966790d0a20202020666f72206c6179657220696e20302e2e782e6d696e283229207b0d0a2020202020202020666f72206e6f646520696e20302e2e792e6d696e283229207b0d0a202020202020202020202020666f722077656967687420696e20302e2e7a2e6d696e283229207b0d0a202020202020202020202020202020206966206c657420536f6d652876616c29203d206e6e2e676574286c617965722c206e6f64652c2077656967687429207b0d0a20202020202020202020202020202020202020207072696e746c6e2128226e6e5b7b7d2c207b7d2c207b7d5d203d207b7d222c206c617965722c206e6f64652c207765696768742c2076616c293b0d0a202020202020202020202020202020207d0d0a2020202020202020202020207d0d0a20202020202020207d0d0a202020207d0d0a7d0d0a"/>
+    <rustLine id="RustLine_1" path="Examples/NeuralNetwork/src/main.rs" line="1" eol="CRLF" text="use try1::NeuralNetwork;" textHex="75736520747279313a3a4e657572616c4e6574776f726b3b"/>
+    <rustLine id="RustLine_2" path="Examples/NeuralNetwork/src/main.rs" line="2" eol="CRLF" text="use try1::make_rng_from_args;" textHex="75736520747279313a3a6d616b655f726e675f66726f6d5f617267733b"/>
+    <rustLine id="RustLine_3" path="Examples/NeuralNetwork/src/main.rs" line="3" eol="CRLF" text="use try1::rng_name_from_args;" textHex="75736520747279313a3a726e675f6e616d655f66726f6d5f617267733b"/>
+    <rustLine id="RustLine_4" path="Examples/NeuralNetwork/src/main.rs" line="4" eol="CRLF"/>
+    <rustLine id="RustLine_5" path="Examples/NeuralNetwork/src/main.rs" line="5" eol="CRLF" text="fn main() {" textHex="666e206d61696e2829207b"/>
+    <rustLine id="RustLine_6" path="Examples/NeuralNetwork/src/main.rs" line="6" eol="CRLF" text="    // Example dimensions for the 3D grid:" textHex="202020202f2f204578616d706c652064696d656e73696f6e7320666f722074686520334420677269643a"/>
+    <rustLine id="RustLine_7" path="Examples/NeuralNetwork/src/main.rs" line="7" eol="CRLF" text="    // x = layers, y = nodes per layer, z = weights per node" textHex="202020202f2f2078203d206c61796572732c2079203d206e6f64657320706572206c617965722c207a203d207765696768747320706572206e6f6465"/>
+    <rustLine id="RustLine_8" path="Examples/NeuralNetwork/src/main.rs" line="8" eol="CRLF" text="    let x_layers = 3usize;" textHex="202020206c657420785f6c6179657273203d20337573697a653b"/>
+    <rustLine id="RustLine_9" path="Examples/NeuralNetwork/src/main.rs" line="9" eol="CRLF" text="    let y_nodes = 4usize;" textHex="202020206c657420795f6e6f646573203d20347573697a653b"/>
+    <rustLine id="RustLine_10" path="Examples/NeuralNetwork/src/main.rs" line="10" eol="CRLF" text="    let z_weights = 2usize;" textHex="202020206c6574207a5f77656967687473203d20327573697a653b"/>
+    <rustLine id="RustLine_11" path="Examples/NeuralNetwork/src/main.rs" line="11" eol="CRLF"/>
+    <rustLine id="RustLine_12" path="Examples/NeuralNetwork/src/main.rs" line="12" eol="CRLF" text="    // Choose RNG by CLI: --rng=default|mulberry64|pcg64|chacha8 and optional --seed=&lt;u64&gt;" textHex="202020202f2f2043686f6f736520524e4720627920434c493a202d2d726e673d64656661756c747c6d756c626572727936347c70636736347c6368616368613820616e64206f7074696f6e616c202d2d736565643d3c7536343e"/>
+    <rustLine id="RustLine_13" path="Examples/NeuralNetwork/src/main.rs" line="13" eol="CRLF" text="    let rng_label = rng_name_from_args(std::env::args().skip(1));" textHex="202020206c657420726e675f6c6162656c203d20726e675f6e616d655f66726f6d5f61726773287374643a3a656e763a3a6172677328292e736b6970283129293b"/>
+    <rustLine id="RustLine_14" path="Examples/NeuralNetwork/src/main.rs" line="14" eol="CRLF" text="    let mut rng = make_rng_from_args(std::env::args().skip(1));" textHex="202020206c6574206d757420726e67203d206d616b655f726e675f66726f6d5f61726773287374643a3a656e763a3a6172677328292e736b6970283129293b"/>
+    <rustLine id="RustLine_15" path="Examples/NeuralNetwork/src/main.rs" line="15" eol="CRLF"/>
+    <rustLine id="RustLine_16" path="Examples/NeuralNetwork/src/main.rs" line="16" eol="CRLF" text="    // Initialize with random values in [-1.0, 1.0] via selected RNG (f64)" textHex="202020202f2f20496e697469616c697a6520776974682072616e646f6d2076616c75657320696e205b2d312e302c20312e305d207669612073656c656374656420524e47202866363429"/>
+    <rustLine id="RustLine_17" path="Examples/NeuralNetwork/src/main.rs" line="17" eol="CRLF" text="    let nn: NeuralNetwork&lt;f64&gt; = NeuralNetwork::random_uniform_f64_with(x_layers, y_nodes, z_weights, -1.0f64, 1.0f64, &amp;mut *rng);" textHex="202020206c6574206e6e3a204e657572616c4e6574776f726b3c6636343e203d204e657572616c4e6574776f726b3a3a72616e646f6d5f756e69666f726d5f6636345f7769746828785f6c61796572732c20795f6e6f6465732c207a5f776569676874732c202d312e306636342c20312e306636342c20266d7574202a726e67293b"/>
+    <rustLine id="RustLine_18" path="Examples/NeuralNetwork/src/main.rs" line="18" eol="CRLF"/>
+    <rustLine id="RustLine_19" path="Examples/NeuralNetwork/src/main.rs" line="19" eol="CRLF" text="    println!(&quot;RNG: {}&quot;, rng_label);" textHex="202020207072696e746c6e212822524e473a207b7d222c20726e675f6c6162656c293b"/>
+    <rustLine id="RustLine_20" path="Examples/NeuralNetwork/src/main.rs" line="20" eol="CRLF" text="    let (x, y, z) = nn.dims();" textHex="202020206c65742028782c20792c207a29203d206e6e2e64696d7328293b"/>
+    <rustLine id="RustLine_21" path="Examples/NeuralNetwork/src/main.rs" line="21" eol="CRLF" text="    println!(&quot;NeuralNetwork&lt;f64&gt; dims: x(layers)={}, y(nodes)={}, z(weights)={} | total elements={}&quot;," textHex="202020207072696e746c6e2128224e657572616c4e6574776f726b3c6636343e2064696d733a2078286c6179657273293d7b7d2c2079286e6f646573293d7b7d2c207a2877656967687473293d7b7d207c20746f74616c20656c656d656e74733d7b7d222c"/>
+    <rustLine id="RustLine_22" path="Examples/NeuralNetwork/src/main.rs" line="22" eol="CRLF" text="        x, y, z, nn.len());" textHex="2020202020202020782c20792c207a2c206e6e2e6c656e2829293b"/>
+    <rustLine id="RustLine_23" path="Examples/NeuralNetwork/src/main.rs" line="23" eol="CRLF"/>
+    <rustLine id="RustLine_24" path="Examples/NeuralNetwork/src/main.rs" line="24" eol="CRLF" text="    // Print a small sample to verify" textHex="202020202f2f205072696e74206120736d616c6c2073616d706c6520746f20766572696679"/>
+    <rustLine id="RustLine_25" path="Examples/NeuralNetwork/src/main.rs" line="25" eol="CRLF" text="    for layer in 0..x.min(2) {" textHex="20202020666f72206c6179657220696e20302e2e782e6d696e283229207b"/>
+    <rustLine id="RustLine_26" path="Examples/NeuralNetwork/src/main.rs" line="26" eol="CRLF" text="        for node in 0..y.min(2) {" textHex="2020202020202020666f72206e6f646520696e20302e2e792e6d696e283229207b"/>
+    <rustLine id="RustLine_27" path="Examples/NeuralNetwork/src/main.rs" line="27" eol="CRLF" text="            for weight in 0..z.min(2) {" textHex="202020202020202020202020666f722077656967687420696e20302e2e7a2e6d696e283229207b"/>
+    <rustLine id="RustLine_28" path="Examples/NeuralNetwork/src/main.rs" line="28" eol="CRLF" text="                if let Some(val) = nn.get(layer, node, weight) {" textHex="202020202020202020202020202020206966206c657420536f6d652876616c29203d206e6e2e676574286c617965722c206e6f64652c2077656967687429207b"/>
+    <rustLine id="RustLine_29" path="Examples/NeuralNetwork/src/main.rs" line="29" eol="CRLF" text="                    println!(&quot;nn[{}, {}, {}] = {}&quot;, layer, node, weight, val);" textHex="20202020202020202020202020202020202020207072696e746c6e2128226e6e5b7b7d2c207b7d2c207b7d5d203d207b7d222c206c617965722c206e6f64652c207765696768742c2076616c293b"/>
+    <rustLine id="RustLine_30" path="Examples/NeuralNetwork/src/main.rs" line="30" eol="CRLF" text="                }" textHex="202020202020202020202020202020207d"/>
+    <rustLine id="RustLine_31" path="Examples/NeuralNetwork/src/main.rs" line="31" eol="CRLF" text="            }" textHex="2020202020202020202020207d"/>
+    <rustLine id="RustLine_32" path="Examples/NeuralNetwork/src/main.rs" line="32" eol="CRLF" text="        }" textHex="20202020202020207d"/>
+    <rustLine id="RustLine_33" path="Examples/NeuralNetwork/src/main.rs" line="33" eol="CRLF" text="    }" textHex="202020207d"/>
+    <rustLine id="RustLine_34" path="Examples/NeuralNetwork/src/main.rs" line="34" eol="CRLF" text="}" textHex="7d"/>
+    <endEvent id="EndEvent_1" name="End"/>
+    <serviceTask id="Task_1" name="comment: structured main()"/>
+    <serviceTask id="Task_2" name="let: x_layers = 3"/>
+    <serviceTask id="Task_3" name="let: y_nodes = 4"/>
+    <serviceTask id="Task_4" name="let: z_weights = 2"/>
+    <serviceTask id="Task_5" name="let: rng_label = rng_name_from_args(std::env::args().skip(1))"/>
+    <serviceTask id="Task_6" name="letmut: rng = make_rng_from_args(std::env::args().skip(1))"/>
+    <serviceTask id="Task_7" name="let: _ = NeuralNetwork::random_uniform_f64_with(x_layers, y_nodes, z_weights, -1.0, 1.0, &lt;expr&gt;)"/>
+    <serviceTask id="Task_8" name="comment: macro println(...)"/>
+    <serviceTask id="Task_9" name="let: _ = nn.dims()"/>
+    <serviceTask id="Task_10" name="comment: macro println(...)"/>
+    <exclusiveGateway id="ExclusiveGateway_11" name="for: layer in 0..x.min(2)"/>
+    <serviceTask id="Task_12" name="comment: loop body layer"/>
+    <exclusiveGateway id="ExclusiveGateway_13" name="for: node in 0..y.min(2)"/>
+    <serviceTask id="Task_14" name="comment: loop body node"/>
+    <exclusiveGateway id="ExclusiveGateway_15" name="for: weight in 0..z.min(2)"/>
+    <serviceTask id="Task_16" name="comment: loop body weight"/>
+    <exclusiveGateway id="ExclusiveGateway_17" name="iflet: _ = nn.get(layer, node, weight)"/>
+    <serviceTask id="Task_18" name="comment: then"/>
+    <serviceTask id="Task_19" name="comment: macro println(...)"/>
+    <serviceTask id="Task_20" name="comment: else"/>
+    <parallelGateway id="ParallelGateway_21" name="join"/>
+    <serviceTask id="Task_22" name="comment: end for weight"/>
+    <serviceTask id="Task_23" name="comment: end for node"/>
+    <serviceTask id="Task_24" name="comment: end for layer"/>
+    <sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="RustSource_1"/>
+    <sequenceFlow id="Flow_S_1" sourceRef="RustSource_1" targetRef="Task_1"/>
+    <sequenceFlow id="Flow_S_2" sourceRef="Task_1" targetRef="Task_2"/>
+    <sequenceFlow id="Flow_S_3" sourceRef="Task_2" targetRef="Task_3"/>
+    <sequenceFlow id="Flow_S_4" sourceRef="Task_3" targetRef="Task_4"/>
+    <sequenceFlow id="Flow_S_5" sourceRef="Task_4" targetRef="Task_5"/>
+    <sequenceFlow id="Flow_S_6" sourceRef="Task_5" targetRef="Task_6"/>
+    <sequenceFlow id="Flow_S_7" sourceRef="Task_6" targetRef="Task_7"/>
+    <sequenceFlow id="Flow_S_8" sourceRef="Task_7" targetRef="Task_8"/>
+    <sequenceFlow id="Flow_S_9" sourceRef="Task_8" targetRef="Task_9"/>
+    <sequenceFlow id="Flow_S_10" sourceRef="Task_9" targetRef="Task_10"/>
+    <sequenceFlow id="Flow_S_11" sourceRef="Task_10" targetRef="ExclusiveGateway_11"/>
+    <sequenceFlow id="Flow_S_12" sourceRef="ExclusiveGateway_11" targetRef="Task_12" name="loop"/>
+    <sequenceFlow id="Flow_S_13" sourceRef="Task_12" targetRef="ExclusiveGateway_13"/>
+    <sequenceFlow id="Flow_S_14" sourceRef="ExclusiveGateway_13" targetRef="Task_14" name="loop"/>
+    <sequenceFlow id="Flow_S_15" sourceRef="Task_14" targetRef="ExclusiveGateway_15"/>
+    <sequenceFlow id="Flow_S_16" sourceRef="ExclusiveGateway_15" targetRef="Task_16" name="loop"/>
+    <sequenceFlow id="Flow_S_17" sourceRef="Task_16" targetRef="ExclusiveGateway_17"/>
+    <sequenceFlow id="Flow_S_18" sourceRef="ExclusiveGateway_17" targetRef="Task_18" name="then"/>
+    <sequenceFlow id="Flow_S_19" sourceRef="Task_18" targetRef="Task_19"/>
+    <sequenceFlow id="Flow_S_20" sourceRef="ExclusiveGateway_17" targetRef="Task_20" name="else"/>
+    <sequenceFlow id="Flow_S_21" sourceRef="Task_19" targetRef="ParallelGateway_21"/>
+    <sequenceFlow id="Flow_S_22" sourceRef="Task_20" targetRef="ParallelGateway_21"/>
+    <sequenceFlow id="Flow_S_23" sourceRef="ParallelGateway_21" targetRef="ExclusiveGateway_15" name="next"/>
+    <sequenceFlow id="Flow_S_24" sourceRef="ExclusiveGateway_15" targetRef="Task_22" name="exit"/>
+    <sequenceFlow id="Flow_S_25" sourceRef="Task_22" targetRef="ExclusiveGateway_13" name="next"/>
+    <sequenceFlow id="Flow_S_26" sourceRef="ExclusiveGateway_13" targetRef="Task_23" name="exit"/>
+    <sequenceFlow id="Flow_S_27" sourceRef="Task_23" targetRef="ExclusiveGateway_11" name="next"/>
+    <sequenceFlow id="Flow_S_28" sourceRef="ExclusiveGateway_11" targetRef="Task_24" name="exit"/>
+    <sequenceFlow id="Flow_S_29" sourceRef="Task_24" targetRef="EndEvent_1"/>
+  </process>
+</definitions>

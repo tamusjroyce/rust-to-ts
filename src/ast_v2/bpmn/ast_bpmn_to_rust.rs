@@ -5,8 +5,71 @@ use crate::ast_v2::ast::{
 };
 
 use super::ast_bpmn::{
-    best_effort_linearize, parse_bpmn_xml, BpmnNode, BpmnProcess, RustFieldSig, RustParamSig,
+    best_effort_linearize, hex_decode, parse_bpmn_xml, BpmnNode, BpmnProcess, RustFieldSig,
+    RustParamSig,
 };
+
+pub fn convert_bpmn_xml_to_rust_sources(xml: &str) -> Result<Vec<(Option<String>, String)>, String> {
+    let proc = parse_bpmn_xml(xml)?;
+    let mut by_path: HashMap<Option<String>, Vec<(usize, String, String)>> = HashMap::new();
+
+    for node in &proc.nodes {
+        if let BpmnNode::RustLine {
+            path,
+            line,
+            eol,
+            text_hex,
+            ..
+        } = node
+        {
+            by_path
+                .entry(path.clone())
+                .or_default()
+                .push((*line, eol.clone(), text_hex.clone()));
+        }
+    }
+
+    if !by_path.is_empty() {
+        let mut out: Vec<(Option<String>, String)> = Vec::new();
+        for (path, mut lines) in by_path {
+            lines.sort_by_key(|(line, _, _)| *line);
+            let mut src = String::new();
+            for (_line_no, eol, text_hex) in lines {
+                let bytes = hex_decode(&text_hex)?;
+                let text = String::from_utf8(bytes)
+                    .map_err(|e| format!("rustLine textHex is not valid UTF-8: {e}"))?;
+                src.push_str(&text);
+                match eol.as_str() {
+                    "CRLF" => src.push_str("\r\n"),
+                    "LF" => src.push('\n'),
+                    _ => {}
+                }
+            }
+            out.push((path, src));
+        }
+        return Ok(out);
+    }
+
+    // Back-compat fallback: decode any embedded rustSource blobs.
+    let mut out: Vec<(Option<String>, String)> = Vec::new();
+    for node in &proc.nodes {
+        if let BpmnNode::RustSource {
+            path,
+            content_hex,
+            ..
+        } = node
+        {
+            if content_hex.trim().is_empty() {
+                continue;
+            }
+            let bytes = hex_decode(content_hex)?;
+            let src = String::from_utf8(bytes)
+                .map_err(|e| format!("rustSource contentHex is not valid UTF-8: {e}"))?;
+            out.push((path.clone(), src));
+        }
+    }
+    Ok(out)
+}
 
 fn map_type_ref(name: &str) -> TypeRef {
     match name.trim() {
@@ -343,6 +406,19 @@ pub fn convert_bpmn_xml_to_module(xml: &str) -> Result<Module, String> {
 }
 
 pub fn convert_bpmn_xml_to_rust_code(xml: &str) -> Result<String, String> {
+    // If the BPMN embeds raw Rust sources, prefer those (lossless roundtrip).
+    let sources = convert_bpmn_xml_to_rust_sources(xml)?;
+    if !sources.is_empty() {
+        // Prefer a `main.rs` payload when present, otherwise return the first.
+        if let Some((_, src)) = sources
+            .iter()
+            .find(|(p, _)| p.as_deref().map(|s| s.ends_with("main.rs")).unwrap_or(false))
+        {
+            return Ok(src.clone());
+        }
+        return Ok(sources[0].1.clone());
+    }
+
     let module = convert_bpmn_xml_to_module(xml)?;
     Ok(crate::ast_v2::module_to_rust(&module))
 }
@@ -353,6 +429,10 @@ mod tests {
         Field, Function, FunctionKind, Module, Param, TypeDecl, TypeKind, TypeRef,
     };
     use crate::ast_v2::bpmn::{convert_bpmn_xml_to_module, convert_module_to_bpmn_xml};
+    use crate::ast_v2::bpmn::{
+        convert_bpmn_xml_to_rust_sources, emit_bpmn_xml, hex_encode, parse_bpmn_xml, BpmnNode,
+        BpmnProcess, BpmnSequenceFlow,
+    };
 
     #[test]
     fn module_round_trips_through_bpmn_xml() {
@@ -405,5 +485,37 @@ mod tests {
         assert_eq!(module2.name, module.name);
         assert_eq!(module2.types, module.types);
         assert_eq!(module2.functions, module.functions);
+    }
+
+    #[test]
+    fn rust_source_round_trips_through_bpmn_xml() {
+        let rust_src = "use std::collections::HashMap;\n\nfn main() {\n    println!(\"hello: {}\", 123);\n}\n";
+        let proc = BpmnProcess {
+            id: "rust_source".to_string(),
+            name: Some("nn".to_string()),
+            nodes: vec![
+                BpmnNode::StartEvent { id: "StartEvent_1".to_string(), name: None },
+                BpmnNode::RustSource {
+                    id: "RustSource_1".to_string(),
+                    path: Some("src/main.rs".to_string()),
+                    content_hex: hex_encode(rust_src.as_bytes()),
+                },
+                BpmnNode::EndEvent { id: "EndEvent_1".to_string(), name: None },
+            ],
+            flows: vec![
+                BpmnSequenceFlow { id: "Flow_1".to_string(), source_ref: "StartEvent_1".to_string(), target_ref: "RustSource_1".to_string(), name: None },
+                BpmnSequenceFlow { id: "Flow_2".to_string(), source_ref: "RustSource_1".to_string(), target_ref: "EndEvent_1".to_string(), name: None },
+            ],
+        };
+
+        let xml = emit_bpmn_xml(&proc);
+
+        let parsed = parse_bpmn_xml(&xml).expect("parse bpmn xml");
+        assert!(parsed.nodes.iter().any(|n| matches!(n, BpmnNode::RustSource { .. })));
+
+        let sources = convert_bpmn_xml_to_rust_sources(&xml).expect("extract rustSource");
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].0.as_deref(), Some("src/main.rs"));
+        assert_eq!(sources[0].1, rust_src);
     }
 }

@@ -134,6 +134,10 @@ button:hover, .fileLabel:hover {
   flex: 1;
 }
 
+.codeEditorHost {
+  padding: 0;
+}
+
 .panel.editor {
   border: 0;
   outline: none;

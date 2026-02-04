@@ -1,4 +1,5 @@
 import Modeler from "https://esm.sh/bpmn-js@18.5.0/lib/Modeler?bundle";
+import { layoutProcess } from "https://esm.sh/bpmn-auto-layout@1.1.1?bundle";
 
 const canvas = document.getElementById("canvas") as HTMLDivElement;
 const status = document.getElementById("status") as HTMLDivElement;
@@ -37,14 +38,27 @@ const modeler = new Modeler({
 
 async function loadXml(xml: string) {
   try {
-    await modeler.importXML(xml);
+    const xmlToImport = await ensureDiagramRenders(xml);
+    await modeler.importXML(xmlToImport);
     const canvasSvc = modeler.get("canvas") as { zoom: (arg: string) => void };
     canvasSvc.zoom("fit-viewport");
     setStatus("Loaded BPMN");
   } catch (e) {
     console.error(e);
     setStatus("Failed to load BPMN (see console)");
+    throw e;
   }
+}
+
+function hasBpmnDi(xml: string): boolean {
+  return /<\w*:?BPMNDiagram\b|<\w*:?BPMNPlane\b|xmlns:bpmndi=/.test(xml);
+}
+
+async function ensureDiagramRenders(xml: string): Promise<string> {
+  if (hasBpmnDi(xml)) return xml;
+  // bpmn-js imports semantic BPMN fine, but without BPMNDI it renders blank.
+  // Use bpmn-auto-layout to add shapes + edges.
+  return await layoutProcess(xml);
 }
 
 async function exportXml(): Promise<string> {

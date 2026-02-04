@@ -1,0 +1,16 @@
+{
+  "name": "rust-to-ts-root",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "install:visual": "npm --prefix tools/bpmn-editor-tauri install",
+
+    "test:visual": "npm --prefix tools/bpmn-editor-tauri run test:visual",
+    "test:visual:update": "npm --prefix tools/bpmn-editor-tauri run test:visual:update",
+
+    "test:visual:headed": "npm --prefix tools/bpmn-editor-tauri run test:visual:headed",
+    "test:visual:headed:slow": "npm --prefix tools/bpmn-editor-tauri run test:visual:headed:slow",
+    "test:visual:ui": "npm --prefix tools/bpmn-editor-tauri run test:visual:ui"
+  }
+}

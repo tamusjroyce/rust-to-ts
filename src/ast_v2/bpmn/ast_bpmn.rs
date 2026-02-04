@@ -48,6 +48,34 @@ pub enum BpmnNode {
         return_type: Option<String>,
         body: Vec<String>,
     },
+    /// Non-standard node used to losslessly round-trip arbitrary Rust source.
+    /// Emits as `<rustSource ...>` in the XML.
+    ///
+    /// `content_hex` is the UTF-8 Rust source bytes hex-encoded.
+    RustSource {
+        id: String,
+        /// Optional relative path/label (e.g. `src/main.rs`).
+        path: Option<String>,
+        content_hex: String,
+    },
+    /// Non-standard node used to store Rust source as individual lines.
+    /// Emits as `<rustLine .../>` in the XML.
+    ///
+    /// `text_hex` is the UTF-8 bytes for the line text hex-encoded.
+    /// `eol` is one of: `LF`, `CRLF`, `NONE`.
+    RustLine {
+        id: String,
+        /// Optional relative path/label (e.g. `src/main.rs`).
+        path: Option<String>,
+        /// 1-based line number.
+        line: usize,
+        /// End-of-line marker for this line: `LF`, `CRLF`, or `NONE`.
+        eol: String,
+        /// Human-readable line text (no trailing newline).
+        text: String,
+        /// Lossless line text (hex-encoded UTF-8 bytes).
+        text_hex: String,
+    },
     Unknown { tag: String, id: Option<String>, name: Option<String> },
 }
 
@@ -111,7 +139,7 @@ fn kv_list_decode(s: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-fn hex_encode(bytes: &[u8]) -> String {
+pub(crate) fn hex_encode(bytes: &[u8]) -> String {
     const LUT: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(bytes.len() * 2);
     for &b in bytes {
@@ -121,7 +149,7 @@ fn hex_encode(bytes: &[u8]) -> String {
     out
 }
 
-fn hex_decode(s: &str) -> Result<Vec<u8>, String> {
+pub(crate) fn hex_decode(s: &str) -> Result<Vec<u8>, String> {
     let s = s.trim();
     if s.len() % 2 != 0 {
         return Err("hex string must have even length".to_string());
@@ -283,6 +311,42 @@ pub fn parse_bpmn_xml(xml: &str) -> Result<BpmnProcess, String> {
                             });
                         }
                     }
+                    "rustSource" => {
+                        if let Some(p) = process.as_mut() {
+                            let id = attr_string(&e, b"id")
+                                .unwrap_or_else(|| "RustSource_1".to_string());
+                            let path = attr_string(&e, b"path");
+                            let content_hex = attr_string(&e, b"contentHex").unwrap_or_default();
+                            p.nodes.push(BpmnNode::RustSource {
+                                id,
+                                path,
+                                content_hex,
+                            });
+                        }
+                    }
+                    "rustLine" => {
+                        if let Some(p) = process.as_mut() {
+                            let id = attr_string(&e, b"id").unwrap_or_else(|| "RustLine_1".to_string());
+                            let path = attr_string(&e, b"path");
+                            let line = attr_string(&e, b"line")
+                                .and_then(|s| s.trim().parse::<usize>().ok())
+                                .unwrap_or(1);
+                            let eol = attr_string(&e, b"eol").unwrap_or_else(|| "LF".to_string());
+                            let text = attr_string(&e, b"text").unwrap_or_default();
+                            let text_hex = match attr_string(&e, b"textHex") {
+                                Some(h) if !h.trim().is_empty() => h,
+                                _ => hex_encode(text.as_bytes()),
+                            };
+                            p.nodes.push(BpmnNode::RustLine {
+                                id,
+                                path,
+                                line,
+                                eol,
+                                text,
+                                text_hex,
+                            });
+                        }
+                    }
                     _ => {
                         // Keep unknown nodes (with identity) for best-effort retention.
                         if let Some(p) = process.as_mut() {
@@ -410,6 +474,42 @@ pub fn emit_bpmn_xml(proc: &BpmnProcess) -> String {
                     let joined = body.join("\n");
                     let body_hex = hex_encode(joined.as_bytes());
                     out.push_str(&format!(r#" bodyHex="{}""#, xml_escape(&body_hex)));
+                }
+                out.push_str("/>\n");
+            }
+            BpmnNode::RustSource {
+                id,
+                path,
+                content_hex,
+            } => {
+                out.push_str(&format!(r#"    <rustSource id="{}""#, xml_escape(id)));
+                if let Some(path) = path {
+                    out.push_str(&format!(r#" path="{}""#, xml_escape(path)));
+                }
+                if !content_hex.trim().is_empty() {
+                    out.push_str(&format!(r#" contentHex="{}""#, xml_escape(content_hex)));
+                }
+                out.push_str("/>\n");
+            }
+            BpmnNode::RustLine {
+                id,
+                path,
+                line,
+                eol,
+                text,
+                text_hex,
+            } => {
+                out.push_str(&format!(r#"    <rustLine id="{}""#, xml_escape(id)));
+                if let Some(path) = path {
+                    out.push_str(&format!(r#" path="{}""#, xml_escape(path)));
+                }
+                out.push_str(&format!(r#" line="{}""#, line));
+                out.push_str(&format!(r#" eol="{}""#, xml_escape(eol)));
+                if !text.is_empty() {
+                    out.push_str(&format!(r#" text="{}""#, xml_escape(text)));
+                }
+                if !text_hex.trim().is_empty() {
+                    out.push_str(&format!(r#" textHex="{}""#, xml_escape(text_hex)));
                 }
                 out.push_str("/>\n");
             }

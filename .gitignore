@@ -152,6 +152,10 @@ venv/
 *.dmp
 *.stackdump
 
+# ----- Playwright -----
+**/test-results/
+**/playwright-report/
+
 # ----- Misc -----
 *.tmp
 *.temp
